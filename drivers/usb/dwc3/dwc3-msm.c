@@ -2351,7 +2351,7 @@ static irqreturn_t msm_dwc3_pwr_irq(int irq, void *data)
 	dwc3_pwr_event_handler(mdwc);
 	return IRQ_HANDLED;
 }
-
+extern bool usb_alert_suspend;
 static int dwc3_msm_power_get_property_usb(struct power_supply *psy,
 				  enum power_supply_property psp,
 				  union power_supply_propval *val)
@@ -2372,7 +2372,10 @@ static int dwc3_msm_power_get_property_usb(struct power_supply *psy,
 		val->intval = mdwc->vbus_active;
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = mdwc->online;
+		if(usb_alert_suspend ==1)
+			val->intval = 0;
+		else
+			val->intval = mdwc->online;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 		val->intval = psy->type;
@@ -3409,13 +3412,13 @@ static void dwc3_check_float_lines(struct dwc3_msm *mdwc)
 	//if (dpdm == 0x2) {
 		/* DP is HIGH = lines are floating */
 		phy_detect_float_ok = true;
-	       printk("[CHARGE] phy_detect_float_ok =%d\n",phy_detect_float_ok);
+		printk("[CHARGE] phy_detect_float_ok =%d\n",phy_detect_float_ok);
 		mdwc->chg_type = DWC3_PROPRIETARY_CHARGER;
 		mdwc->otg_state = OTG_STATE_B_IDLE;
 		pm_runtime_put_sync(mdwc->dev);
 		dbg_event(0xFF, "FLT psync",
 				atomic_read(&mdwc->dev->power.usage_count));
-	} else if (dpdm) {
+	}else if (dpdm) {
 		dev_dbg(mdwc->dev, "%s:invalid linestate:%x\n", __func__, dpdm);
 	}
 }

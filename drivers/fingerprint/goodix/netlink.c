@@ -47,7 +47,7 @@ void sendnlmsg(char *message)
 
     message[slen]= '\0';
     memcpy(NLMSG_DATA(nlh),message,slen+1);
-    printk("my_net_link:send message %d.\n",*(char *)NLMSG_DATA(nlh));
+    //printk("my_net_link:send message %d.\n",*(char *)NLMSG_DATA(nlh));
 
     netlink_unicast(nl_sk,skb_1,pid,MSG_DONTWAIT);
 
@@ -66,7 +66,7 @@ void nl_data_ready(struct sk_buff *__skb)
 
 	memcpy(str, NLMSG_DATA(nlh), sizeof(str));
 	pid = nlh->nlmsg_pid;
-	printk("Message pid %d received:%s\n",pid, str) ;
+	//printk("Message pid %d received:%s\n",pid, str) ;
 	//while(i--)
 	//{
 	    //init_completion(&cmpl);

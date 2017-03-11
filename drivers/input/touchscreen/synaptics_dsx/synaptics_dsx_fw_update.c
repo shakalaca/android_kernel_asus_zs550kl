@@ -43,10 +43,10 @@
 #include "synaptics_dsx_core.h"
 
 #define BOE_FW_IHEX_NAME "synaptics/PR2463803-BOE-4004F315_0909.hex.bin"
-#define TM_FW_IHEX_NAME "synaptics/PR2463805-TM-4001F316_0909.hex.bin"
+#define TM_FW_IHEX_NAME "synaptics/PR2486588-TM-4001F318_1018.hex.bin"
 //#define FW_IMAGE_NAME "synaptics/startup_fw_update.img"
 #define AQU_BOE_FW_IMAGE_NAME "synaptics/PR2463803-BOE-4004F315_0909.img"
-#define AQU_TM_FW_IMAGE_NAME "synaptics/PR2463805-TM-4001F316_0909.img"
+#define AQU_TM_FW_IMAGE_NAME "synaptics/PR2486588-TM-4001F318_1018.img"
 #define PISCES_BOE_FW_IMAGE_NAME "synaptics/Pisces_BOE_TD4300_PR2330212_80040301.img"
 #define PISCES_TM_FW_IMAGE_NAME "synaptics/Pisces_TM_TD4300_PR2347791_80010301.img"
 

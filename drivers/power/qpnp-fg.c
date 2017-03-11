@@ -2378,6 +2378,7 @@ static int get_sram_prop_now(struct fg_chip *chip, unsigned int type)
 		return get_batt_id(fg_data[type].value,
 				fg_data[FG_DATA_BATT_ID_INFO].value);
 
+	if (type == FG_DATA_BATT_TEMP)
        if (g_fake_battery_temperature == 690) {
                return 610;
        }

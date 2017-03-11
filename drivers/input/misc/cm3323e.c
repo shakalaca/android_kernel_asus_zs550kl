@@ -41,10 +41,10 @@
 #define REL_GREEN	REL_Y
 #define REL_BLUE	REL_Z
 #define REL_WHITE	REL_MISC
-#define CM3323_VDD_MIN_UV	2700000
-#define CM3323_VDD_MAX_UV	3300000
-//#define CM3323_VI2C_MIN_UV	1750000
-//#define CM3323_VI2C_MAX_UV	1950000
+#define CM3323_VDD_MIN_UV	3000000
+#define CM3323_VDD_MAX_UV	3000000
+#define CM3323_VI2C_MIN_UV	1800000
+#define CM3323_VI2C_MAX_UV	1800000
 static void report_do_work(struct work_struct *w);
 static DECLARE_DELAYED_WORK(report_work, report_do_work);
 
@@ -240,6 +240,7 @@ static int cm3323_power_set(struct cm3323e_info *info, bool on)
 	int rc;
 
 	if (on) {
+/*
 		info->vdd = regulator_get(&info->i2c_client->dev, "vdd");
 		if (IS_ERR(info->vdd)) {
 			rc = PTR_ERR(info->vdd);
@@ -257,16 +258,40 @@ static int cm3323_power_set(struct cm3323e_info *info, bool on)
 				goto err_vdd_set_vtg;
 			}
 		}
+*/
+		info->vio = regulator_get(&info->i2c_client->dev, "vio");
+		if (IS_ERR(info->vio)) {
+			rc = PTR_ERR(info->vio);
+			dev_err(&info->i2c_client->dev,
+				"Regulator get failed vio rc=%d\n", rc);
+			goto err_vio_get;
+		}
 
+		if (regulator_count_voltages(info->vio) > 0) {
+			rc = regulator_set_voltage(info->vio,
+				CM3323_VI2C_MIN_UV, CM3323_VI2C_MAX_UV);
+			if (rc) {
+				dev_err(&info->i2c_client->dev,
+				"Regulator set failed vio rc=%d\n", rc);
+				goto err_vio_set_vtg;
+			}
+		}
+/*
 		rc = regulator_enable(info->vdd);
 		if (rc) {
 			dev_err(&info->i2c_client->dev,
 				"Regulator vdd enable failed rc=%d\n", rc);
 			goto err_vdd_ena;
 		}
-
-		
+*/
+		rc = regulator_enable(info->vio);
+		if (rc) {
+			dev_err(&info->i2c_client->dev,
+				"Regulator vio enable failed rc=%d\n", rc);
+			goto err_vio_ena;
+		}
 	} else {
+/*
 		rc = regulator_disable(info->vdd);
 		if (rc) {
 			dev_err(&info->i2c_client->dev,
@@ -277,20 +302,40 @@ static int cm3323_power_set(struct cm3323e_info *info, bool on)
 			regulator_set_voltage(info->vdd, 0, CM3323_VDD_MAX_UV);
 
 		regulator_put(info->vdd);
+*/
+		rc = regulator_disable(info->vio);
+		if (rc) {
+			dev_err(&info->i2c_client->dev,
+				"Regulator vio disable failed rc=%d\n", rc);
+			return rc;
+		}
+		if (regulator_count_voltages(info->vio) > 0)
+			regulator_set_voltage(info->vio, 0,
+					CM3323_VI2C_MAX_UV);
 
-
+		regulator_put(info->vio);
 	}
 
 	dev_err(&info->i2c_client->dev,"CM3323 set power ok");
 	return 0;
 
-
-err_vdd_ena:
+err_vio_ena:
+/*
 	regulator_disable(info->vdd);
-
+err_vdd_ena:
+*/
+	if (regulator_count_voltages(info->vio) > 0)
+		regulator_set_voltage(info->vio, 0, CM3323_VI2C_MAX_UV);
+err_vio_set_vtg:
+	regulator_put(info->vio);
+err_vio_get:
+/*
+	if (regulator_count_voltages(info->vdd) > 0)
+		regulator_set_voltage(info->vdd, 0, CM3323_VDD_MAX_UV);
 err_vdd_set_vtg:
 	regulator_put(info->vdd);
 err_vdd_get:
+*/
 	return rc;
 }
 
@@ -887,6 +932,18 @@ static int cm3323e_probe(struct i2c_client *client,
 	mutex_init(&als_disable_mutex);
 	mutex_init(&als_get_adc_mutex);
 
+	ret = cm3323_power_set(lpi, true);
+	if (ret < 0) {	
+		pr_err("[CM3323E error]%s:cm3323 power on error!\n", __func__);
+		goto err_cm3323_power_on;
+	}
+
+	ret = cm3323e_setup(lpi);
+	if (ret < 0) {
+		pr_err("[ERR][CM3323E error]%s: cm3323e_setup error!\n", __func__);
+		goto err_cm3323e_setup;
+	}
+
 	ret = rgbsensor_setup(lpi);
 	if (ret < 0) {
 		pr_err("[LS][CM3323E error]%s: rgbsensor_setup error!!\n",
@@ -894,23 +951,11 @@ static int cm3323e_probe(struct i2c_client *client,
 		goto err_rgbsensor_setup;
 	}
 
-	  ret = cm3323_power_set(lpi, true);
-	if (ret < 0) {	
-		pr_err("[CM3323E error]%s:cm3323 power on error!\n", __func__);
-		goto err_cm3323_power_on;
-	}
-
 	lpi->lp_wq = create_singlethread_workqueue("cm3323e_wq");
 	if (!lpi->lp_wq) {
 		pr_err("[CM3323E error]%s: can't create workqueue\n", __func__);
 		ret = -ENOMEM;
 		goto err_create_singlethread_workqueue;
-	}
-	
-	ret = cm3323e_setup(lpi);
-	if (ret < 0) {
-		pr_err("[ERR][CM3323E error]%s: cm3323e_setup error!\n", __func__);
-		goto err_cm3323e_setup;
 	}
 
 	lpi->cm3323e_class = class_create(THIS_MODULE, "rgb_sensors");
@@ -960,17 +1005,16 @@ err_sysfs_create_group_rgb:
 err_create_ls_device:
 	class_destroy(lpi->cm3323e_class);
 err_create_class:
-err_cm3323e_setup:
 	destroy_workqueue(lpi->lp_wq);
-	mutex_destroy(&als_enable_mutex);
-	mutex_destroy(&als_disable_mutex);
-	mutex_destroy(&als_get_adc_mutex);
-//	input_unregister_device(lpi->ls_input_dev);
 	input_free_device(lpi->ls_input_dev);
 err_create_singlethread_workqueue:
-	//misc_deregister(&rgbsensor_misc);
 err_rgbsensor_setup:
+err_cm3323e_setup:
+	cm3323_power_set(lpi, false);
 err_cm3323_power_on:
+	mutex_destroy(&als_get_adc_mutex);
+	mutex_destroy(&als_disable_mutex);
+	mutex_destroy(&als_enable_mutex);
 	kfree(lpi);
 	return ret;
 }

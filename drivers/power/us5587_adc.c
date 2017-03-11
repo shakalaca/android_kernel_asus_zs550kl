@@ -408,6 +408,22 @@ static void create_thermal_temp_proc_file(void)
 	}
 	return;
 }
+bool us5587_adc_enable =0;
+int  asus_us5587_adc(bool enable)
+{
+	if(us5587_chip==NULL){
+		pr_info("us5587_chip NULL\n");
+		return 0;
+	}
+
+	pr_info("%s enable:%d\n",__FUNCTION__,enable);
+	us5587_adc_enable = enable;
+	if(enable)
+		gpio_direction_output(us5587_chip->adc_en_gpio, 0);
+	else
+		gpio_direction_output(us5587_chip->adc_en_gpio, 1);
+	return true;
+}
 
 static int us5587_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
@@ -466,6 +482,8 @@ static int us5587_probe(struct i2c_client *client,
 	chip->thermal_level=0;
 	INIT_DELAYED_WORK(&chip->polling_temp_work,asus_polling_temp_work);
 	create_thermal_temp_proc_file();
+	if(!us5587_adc_enable)
+		gpio_direction_output(chip->adc_en_gpio, 1);
 	printk("us5587 probe ok\n");
 	return 0;
 }

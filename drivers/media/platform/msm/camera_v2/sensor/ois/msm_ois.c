@@ -1659,14 +1659,17 @@ static int Sysfs_read_word_seq(char *filename, int *value, int size)
 	struct file *fp = NULL;
 	mm_segment_t old_fs;
 	loff_t pos_lsts = 0;
-	char buf[size][5];
-	ssize_t buf_size = 0;
+	char buf[size][10];
+
+	pr_err("[8953_ois] %s: Enter\n", __func__);
+
 	/* open file */
 	fp = filp_open(filename, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
 	if (IS_ERR_OR_NULL(fp)) {
+		pr_err("[8953_ois] %s: File open (%s) fail\n", __func__, filename);
 		return -ENOENT;	/*No such file or directory*/
 	}
-
+	pr_err("[8953_ois] %s: Load calibration file (%s) succeed!",__func__,filename);
 	/*For purpose that can use read/write system call*/
 
 	/* Save addr_limit of the current process */
@@ -1676,26 +1679,23 @@ static int Sysfs_read_word_seq(char *filename, int *value, int size)
 
 	if (fp->f_op != NULL && fp->f_op->read != NULL) {
 		pos_lsts = 0;
-		for(i = 0; i < size; i++){
-			buf_size = fp->f_op->read(fp, buf[i], 5, &pos_lsts);
-			if(buf_size < 5) {
-				/* Set addr_limit of the current process back to its own */
-				set_fs(old_fs);
-				/* close file */
-				filp_close(fp, NULL);
-				return -1;
-			}
-			buf[i][4]='\0';
-			sscanf(buf[i], "%x", &value[i]);
+		fp->f_op->read(fp, buf[0], 10, &pos_lsts);
+		buf[0][9]='\0';
+		sscanf(buf[0], "%d", &value[0]);
+		pr_err("[8953_ois] %s: %s\n",__func__, buf[0]);
+
+		pos_lsts = 0;
+		fp->f_op->read(fp, buf[1], 10, &pos_lsts);
+		buf[1][9]='\0';
+		for(i=0;i<9;i++)
+		{
+			if(buf[1][i] == ' ') break;
 		}
+		sscanf(&buf[1][i+1], "%d", &value[1]);
+		pr_err("[8953_ois] %s: %s\n",__func__, &buf[1][i+1]);
+
 	} else {
-		/* Set addr_limit of the current process back to its own */
-		set_fs(old_fs);
-
-		/* close file */
-		filp_close(fp, NULL);
-		pr_err("%s: f_op = null or write = null, fail line = %d\n", __func__, __LINE__);
-
+		pr_err("[8953_ois] %s: File (%s) strlen f_op=NULL or op->read=NULL\n", __func__, filename);
 		return -ENXIO;	/*No such device or address*/
 	}
 	/* Set addr_limit of the current process back to its own */
@@ -1703,6 +1703,8 @@ static int Sysfs_read_word_seq(char *filename, int *value, int size)
 
 	/* close file */
 	filp_close(fp, NULL);
+
+	pr_err( "[8953_ois] %s: Exit\n", __func__);
 
 	return 0;
 }

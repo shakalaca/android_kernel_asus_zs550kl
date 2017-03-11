@@ -420,8 +420,6 @@ static irqreturn_t gf_irq(int irq, void *handle)
     wake_lock_timeout(&gf_dev->wake_lock,msecs_to_jiffies(1000));
 
 #if defined(GF_NETLINK_ENABLE)
-    
-    printk("gf_irq \n");
     sendnlmsg(&temp);
 #elif defined (GF_FASYNC)
     

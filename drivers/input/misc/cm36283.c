@@ -64,8 +64,8 @@ extern int Read_PROJ_ID(void);
 /* POWER SUPPLY VOLTAGE RANGE */
 #define CM36283_VDD_MIN_UV	3000000
 #define CM36283_VDD_MAX_UV	3000000
-#define CM36283_VI2C_MIN_UV	1750000
-#define CM36283_VI2C_MAX_UV	1950000
+#define CM36283_VI2C_MIN_UV	1800000
+#define CM36283_VI2C_MAX_UV	1800000
 
 #define CONFIG_ASUS_FACTORY_SENSOR_MODE  1
 //wxtest
@@ -3643,6 +3643,7 @@ static int cm36283_power_set(struct CM36283_info *info, bool on)
 	int rc;
 
 	if (on) {
+/*
 		info->vdd = regulator_get(&info->i2c_client->dev, "vdd");
 		if (IS_ERR(info->vdd)) {
 			rc = PTR_ERR(info->vdd);
@@ -3660,7 +3661,7 @@ static int cm36283_power_set(struct CM36283_info *info, bool on)
 				goto err_vdd_set_vtg;
 			}
 		}
-/*
+*/
 		info->vio = regulator_get(&info->i2c_client->dev, "vio");
 		if (IS_ERR(info->vio)) {
 			rc = PTR_ERR(info->vio);
@@ -3678,22 +3679,22 @@ static int cm36283_power_set(struct CM36283_info *info, bool on)
 				goto err_vio_set_vtg;
 			}
 		}
-*/
+/*
 		rc = regulator_enable(info->vdd);
 		if (rc) {
 			dev_err(&info->i2c_client->dev,
 				"Regulator vdd enable failed rc=%d\n", rc);
 			goto err_vdd_ena;
 		}
-/*
+*/
 		rc = regulator_enable(info->vio);
 		if (rc) {
 			dev_err(&info->i2c_client->dev,
 				"Regulator vio enable failed rc=%d\n", rc);
 			goto err_vio_ena;
 		}
-*/
 	} else {
+/*
 		rc = regulator_disable(info->vdd);
 		if (rc) {
 			dev_err(&info->i2c_client->dev,
@@ -3704,7 +3705,7 @@ static int cm36283_power_set(struct CM36283_info *info, bool on)
 			regulator_set_voltage(info->vdd, 0, CM36283_VDD_MAX_UV);
 
 		regulator_put(info->vdd);
-/*
+*/
 		rc = regulator_disable(info->vio);
 		if (rc) {
 			dev_err(&info->i2c_client->dev,
@@ -3716,30 +3717,27 @@ static int cm36283_power_set(struct CM36283_info *info, bool on)
 					CM36283_VI2C_MAX_UV);
 
 		regulator_put(info->vio);
-*/
 	}
 
 	return 0;
 
-/*
 err_vio_ena:
-	regulator_disable(info->vdd);
-*/
-err_vdd_ena:
 /*
+	regulator_disable(info->vdd);
+err_vdd_ena:
+*/
 	if (regulator_count_voltages(info->vio) > 0)
 		regulator_set_voltage(info->vio, 0, CM36283_VI2C_MAX_UV);
-*/
-//err_vio_set_vtg:
-/*
+err_vio_set_vtg:
 	regulator_put(info->vio);
-*/
-//err_vio_get:
+err_vio_get:
+/*
 	if (regulator_count_voltages(info->vdd) > 0)
 		regulator_set_voltage(info->vdd, 0, CM36283_VDD_MAX_UV);
 err_vdd_set_vtg:
 	regulator_put(info->vdd);
 err_vdd_get:
+*/
 	return rc;
 }
 

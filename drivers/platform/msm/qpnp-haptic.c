@@ -1326,7 +1326,7 @@ static ssize_t qpnp_hap_vmax_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "level = %d, vmax = %d\n", hap->vmax_level, ret);
 }
 
-static int asus_vmax_mv[7] = {696, 928, 1160, 1392, 1624, 1856, 1392}; //level_general_0~level_general_5,level_alarm
+static int asus_vmax_mv[7] = {696, 928, 1044, 1160, 1276, 1392, 1392}; //level_general_0~level_general_5,level_alarm
 static ssize_t qpnp_hap_vmax_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {

@@ -5725,6 +5725,7 @@ static void deinitKernelEnv(void)
 static ssize_t audio_debug_proc_write(struct file *filp, const char __user *buff, size_t len, loff_t *off)
 {
 	char messages[256];
+	bool isBuildType_user =false;
 	memset(messages, 0, sizeof(messages));
 	printk("[Audio][Debug] audio_debug_proc_write\n");
 
@@ -5736,12 +5737,24 @@ static ssize_t audio_debug_proc_write(struct file *filp, const char __user *buff
 	initKernelEnv();
 
 	if (strncmp(messages, "1", 1) == 0) {
-		if (!g_user_dbg_mode) {
+		//sherry add for MP and user build set force to audio mode
+		#ifdef ASUS_SHIP_BUILD
+			isBuildType_user =true;
+		#endif
+		if(isBuildType_user && asus_hw_id == ASUS_PR2)
+		{
+			g_user_dbg_mode = 0;
+			gpio_direction_output(g_gpio_audio_debug, 1); /*  disable uart log, enable audio */
+			wcd_mbhc_plug_detect_for_debug_mode(&g_msm8x16_wcd_priv->mbhc, 0);
+			printk("MP device user build set force Audio mode!!\n");
+		}
+		else if (!g_user_dbg_mode) {
 			gpio_direction_output(g_gpio_audio_debug, 0); /* enable uart log, disable audio */
 			wcd_mbhc_plug_detect_for_debug_mode(&g_msm8x16_wcd_priv->mbhc, 1);
 			g_user_dbg_mode = 1;
+			printk("[Audio][Debug] Audio debug mode!!\n");
 		}
-		printk("[Audio][Debug] Audio debug mode!!\n");
+
 	} else if (strncmp(messages, "0", 1) == 0) {
 		if (g_user_dbg_mode) {
 			gpio_direction_output(g_gpio_audio_debug, 1); /* disable uart log, enable audio */
@@ -6038,6 +6051,12 @@ static int msm8x16_wcd_codec_probe(struct snd_soc_codec *codec)
 	if (ret) {
 		printk("%s: Failed to request gpio AUDIO_DEBUG %d, ret %d\n", __func__, g_gpio_audio_debug, ret);
 	} else {
+		//sherry ++ force audio mode for MP_user
+		#ifdef ASUS_SHIP_BUILD
+		if(asus_hw_id == ASUS_PR2 )
+			g_user_dbg_mode = 0;
+		#endif
+		//sherry --
 		if (g_user_dbg_mode == 1) {
 			gpio_direction_output(g_gpio_audio_debug, 0);/* enable uart log, disable audio */
 			wcd_mbhc_plug_detect_for_debug_mode(&g_msm8x16_wcd_priv->mbhc, 1);

@@ -196,6 +196,10 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 		if(s_ctrl->id == 0){
 			g_main_ctrl = s_ctrl;
 		}
+		else
+		{
+			g_main_ctrl = NULL;
+		}
 	}
 	pr_err("%s : rc=(%d) X\n", __func__, rc); //ASUS_BSP PJ_Ma+++
 	return rc;

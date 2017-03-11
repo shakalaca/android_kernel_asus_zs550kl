@@ -783,7 +783,7 @@ static int asus_flash_trigger_time_proc_open(struct inode *inode, struct  file *
 {
     return single_open(file, asus_flash_trigger_time_proc_read, NULL);
 }
-#define ZENFLASH_DEFAULT_CURRENT 600
+#define ZENFLASH_DEFAULT_CURRENT 800
 #define ZENFLASH_MAX_CURRENT     900
 #define ZENFLASH_MAX_TIMEOUT     1000
 
