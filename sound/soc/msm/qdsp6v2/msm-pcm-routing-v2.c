@@ -1883,7 +1883,7 @@ static int msm_routing_get_port_mixer(struct snd_kcontrol *kcontrol,
 	else
 		ucontrol->value.integer.value[0] = 0;
 
-	pr_err("%s: reg %x shift %x val %ld\n", __func__, mc->reg, mc->shift,
+	pr_debug("%s: reg %x shift %x val %ld\n", __func__, mc->reg, mc->shift,
 	ucontrol->value.integer.value[0]);
 
 	return 0;
@@ -1895,7 +1895,7 @@ static int msm_routing_put_port_mixer(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 
-	pr_err("%s: reg 0x%x shift 0x%x val %ld\n", __func__, mc->reg,
+	pr_debug("%s: reg 0x%x shift 0x%x val %ld\n", __func__, mc->reg,
 		mc->shift, ucontrol->value.integer.value[0]);
 
 	if (ucontrol->value.integer.value[0]) {

@@ -3881,7 +3881,9 @@ static bool sdhci_msm_is_bootdevice(struct device *dev)
 	 */
 	return true;
 }
-
+//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status +++
+extern void create_emmc_health_proc_file(void);  
+//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status ---
 static int sdhci_msm_probe(struct platform_device *pdev)
 {
 	struct sdhci_host *host;
@@ -4350,7 +4352,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		if (ret)
 			goto remove_max_bus_bw_file;
 	}
-
+	//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status +++
+	if (!strcmp("mmc0",mmc_hostname(host->mmc))) {
+		create_emmc_health_proc_file();
+	}
+	//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status ---
 	msm_host->auto_cmd21_attr.show = show_auto_cmd21;
 	msm_host->auto_cmd21_attr.store = store_auto_cmd21;
 	sysfs_attr_init(&msm_host->auto_cmd21_attr.attr);

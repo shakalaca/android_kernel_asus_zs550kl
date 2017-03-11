@@ -783,6 +783,9 @@ endif
 ifeq ($(FACTORY),1)
 		KBUILD_CFLAGS += -DASUS_FACTORY_BUILD
 endif
+ifeq ($(TARGET_SKU),CN)
+		KBUILD_CFLAGS += -DASUS_SKU_CN
+endif
 #<ASUS-alex wang 20160303>support powerkey mode when Factory branch-----
 
 ifneq ($(BUILD_NUMBER),)

@@ -20,12 +20,14 @@
 #include <linux/mmc/mmc.h>
 #include <linux/reboot.h>
 #include <trace/events/mmc.h>
+#include <linux/proc_fs.h>
 
 #include "core.h"
 #include "bus.h"
 #include "mmc_ops.h"
 #include "sd_ops.h"
 
+static u8  storage_primary_health;
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -808,6 +810,9 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		card->ext_csd.device_life_time[0] = ext_csd[268];   //typeA
 		card->ext_csd.device_life_time[1] = ext_csd[269];   //typeB
 	//ASUS_BSP jessie_tian : ---add device_life_time---
+	//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status +++
+		storage_primary_health = ext_csd[267];
+	//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status ---
 
 		/* Enhance Strobe is supported since v5.1 which rev should be
 		 * 8 but some eMMC devices can support it with rev 7. So handle
@@ -2553,12 +2558,6 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 			goto out;
 	}
 
-	if (mmc_card_doing_auto_bkops(host->card)) {
-		err = mmc_set_auto_bkops(host->card, false);
-		if (err)
-			goto out;
-	}
-
 	err = mmc_flush_cache(host->card);
 	if (err)
 		goto out;
@@ -2637,9 +2636,6 @@ static int mmc_partial_init(struct mmc_host *host)
 	}
 	pr_debug("%s: %s: reading and comparing ext_csd successful\n",
 		mmc_hostname(host), __func__);
-
-	if (mmc_card_support_auto_bkops(host->card))
-		(void)mmc_set_auto_bkops(host->card, true);
 
 	if (card->ext_csd.cmdq_support && (card->host->caps2 &
 					   MMC_CAP2_CMD_QUEUE)) {
@@ -2985,3 +2981,32 @@ err:
 
 	return err;
 }
+
+//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status +++
+static int emmc_health_proc_read(struct seq_file *buf, void *v)
+{
+
+	return seq_printf(buf, "0x%02x", storage_primary_health);
+}
+
+static int emmc_health_proc_open(struct inode *inode, struct  file *file)
+{
+    return single_open(file, emmc_health_proc_read, NULL);
+}
+
+void create_emmc_health_proc_file(void)
+{
+	static const struct file_operations proc_fops = {
+		.owner = THIS_MODULE,
+		.open =  emmc_health_proc_open,
+		.read = seq_read,
+	};
+	struct proc_dir_entry *proc_file = proc_create("storage_primary_health", 0444, NULL, &proc_fops);
+
+	if (!proc_file) {
+		printk("[eMMC]%s failed!\n", __FUNCTION__);
+	}
+	return;
+}
+EXPORT_SYMBOL(create_emmc_health_proc_file);
+//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status ---

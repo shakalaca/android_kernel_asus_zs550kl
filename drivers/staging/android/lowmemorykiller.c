@@ -95,7 +95,7 @@ static unsigned long lowmem_count(struct shrinker *s,
 }
 
 static atomic_t shift_adj = ATOMIC_INIT(0);
-static short adj_max_shift = 353;
+static short adj_max_shift = 450;
 
 /* User knob to enable/disable adaptive lmk feature */
 static int enable_adaptive_lmk;

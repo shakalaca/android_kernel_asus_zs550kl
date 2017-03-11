@@ -737,7 +737,7 @@ static ssize_t flash_brightness_proc_write(struct file *dev, const char *buf, si
 	else
 	{
 		if(now_flash_brightness_value>100)now_flash_brightness_value=100;
-		set_val0 = g_rear_torch_max_current*now_flash_brightness_value/100;
+		set_val0 = 135*now_flash_brightness_value/100;
 		last_flash_brightness_value = set_val0;
 		set_val1=set_val0;
 		if(asus_project_id==ASUS_ZS550KL)

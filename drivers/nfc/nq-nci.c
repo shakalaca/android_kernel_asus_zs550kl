@@ -137,7 +137,7 @@ static irqreturn_t nqx_dev_irq_handler(int irq, void *dev_id)
 	if (device_may_wakeup(&nqx_dev->client->dev) &&
 		(nqx_dev->client->dev.power.is_suspended == true)) {
 		pm_wakeup_event(&nqx_dev->client->dev, WAKEUP_SRC_TIMEOUT);
-		pr_info("%s: wakeup sys.\n", __func__);
+		//pr_info("%s: wakeup sys.\n", __func__);
 	}
 	ret = gpio_get_value(nqx_dev->irq_gpio);
 	if (!ret) {
@@ -187,7 +187,7 @@ static ssize_t nfc_read(struct file *filp, char __user *buf,
 		if (gpio_get_value(nqx_dev->irq_gpio)) {
 			nqx_disable_irq(nqx_dev);
 		} else {
-                        pr_info("%s: nfc wake unlock\n", __func__);
+                        //pr_info("%s: nfc wake unlock\n", __func__);
                         wake_unlock(&nqx_dev->wake_lock);
                         ret = wait_event_interruptible(nqx_dev->read_wq,
                                         gpio_get_value(nqx_dev->irq_gpio));

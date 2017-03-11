@@ -49,15 +49,18 @@
 //<ASUS alexwang20160309>support charger limit enable++++
 #ifdef ASUS_FACTORY_BUILD
 bool charger_batt_enable=1;
+int asus_charge_type;
+#endif
+
+//<asus demonapp>
 bool charger_limit_enable;
 bool charger_flag;	
 int charger_limit_setting;
-int asus_charge_type;
 struct smbchg_chip *the_chip;
 static void asus_battery_charging_limit(struct work_struct *dat);
 void charger_limit_update_work(int time);
+//<asus demonapp>
 
-#endif
 //<ASUS alexwang20160309>support charger limit enable++++
 extern int us5587_read_reg(int reg, u8 *val);
 extern int smb1351_asus_set_otg(bool toggle);
@@ -1935,8 +1938,20 @@ static int smbchg_set_usb_current_max(struct smbchg_chip *chip,
 					pr_err("Couldn't set ICL override rc = %d\n",
 							rc);
 			} else {
-				/* default to 500mA */
-				current_ma = CURRENT_500_MA;
+				if (chip->asus_charging_type== TYPEC_1P5A || chip->asus_charging_type == TYPEC_3P0A) {
+					rc = smbchg_set_high_usb_chg_current(chip, current_ma);
+					if (rc < 0) {
+						pr_err("Couldn't set %dmA rc = %d\n", current_ma, rc);
+						goto out;
+					}
+					rc = smbchg_masked_write(chip, chip->usb_chgpth_base + CMD_IL,
+							ICL_OVERRIDE_BIT, ICL_OVERRIDE_BIT);
+					if (rc < 0)
+						pr_err("Couldn't set ICL override rc = %d\n", rc);
+				} else {
+					/* default to 500mA */
+					current_ma = CURRENT_500_MA;
+				}
 			}
 			pr_smb(PR_STATUS,
 				"override_usb_current=%d current_ma set to %d\n",
@@ -4567,7 +4582,7 @@ static void update_typec_dfp_setting(struct smbchg_chip *chip)
 		schedule_delayed_work(&chip->typec_dfp_setting_work_1A5,2*HZ);
 	}else if(chip->typec_mode == DFP_MODE_3A){
 		chip->asus_charging_type = TYPEC_3P0A;		
-		asus_change_usbin(chip,900);
+		asus_change_usbin(chip,1400);
 		cancel_delayed_work(&chip->typec_dfp_setting_work_3A);
 		schedule_delayed_work(&chip->typec_dfp_setting_work_3A,2*HZ);
 	}else {
@@ -5125,10 +5140,10 @@ static void handle_usb_insertion(struct smbchg_chip *chip)
 
 	//we check cable type again,to avoid wrong type detect when slowly insert
 	//wait 500ms, so phy finish the DED detection
-	msleep(200);
 	//if((usb_supply_type == POWER_SUPPLY_TYPE_USB)&&(chip->typec_mode==DFP_MODE_OTHERS))
 	if(usb_supply_type == POWER_SUPPLY_TYPE_USB)
         {
+        msleep(200);
 		icl_mode=smbchg_get_aicl_current_limit_mode(chip);
 		pr_info("[CHARGE]icl_mode=%d,force_rerun_apsd=%d\n",icl_mode,chip->force_rerun_apsd);
 		//if(icl_mode!=ICL_MODE_500MA)
@@ -8683,11 +8698,65 @@ static int smbchg_check_chg_version(struct smbchg_chip *chip)
 
 	return 0;
 }
+#ifndef ASUS_SKU_CN
+//<asus demonapp>
+#define ADF_PATH "/ADF/ADF"
+static mm_segment_t oldfs;
+static void initKernelEnv(void)
+{
+	oldfs = get_fs();
+	set_fs(KERNEL_DS);
+}
+
+static void deinitKernelEnv(void)
+{
+	set_fs(oldfs);
+}
+
+static bool Check_ADF_Value(void)
+{
+	uint8_t *buf = NULL;
+	int readlen = 0,i=0;
+	off_t fsize;
+	struct inode *inode;
+	struct file *fd;
+	
+	initKernelEnv();
+	fd = filp_open(ADF_PATH, O_RDONLY, 0);
+	if (IS_ERR_OR_NULL(fd)) {
+       	pr_info("%s open (%s) failed\n",__FUNCTION__,ADF_PATH);
+		return false;
+    	}
+	inode = fd->f_dentry->d_inode;
+	fsize = inode->i_size;
+	buf = kmalloc(fsize, GFP_KERNEL);
+	readlen = fd->f_op->read(fd, buf, fsize, &fd->f_pos);
+	if (readlen < 0) {
+		pr_info("%s read (%s) failed\n",__FUNCTION__,ADF_PATH);
+		deinitKernelEnv();
+		filp_close(fd, NULL);
+		kfree(buf);
+		return false;
+	}
+	deinitKernelEnv();
+	filp_close(fd,NULL);
+
+	for(i=0;i<readlen;i++)
+		pr_info("%s,buf[%d]:%d\n",__FUNCTION__,i,buf[i]);
+	
+	if (readlen != 4) {
+		return false;
+	} else if (buf[3] == 0x1 || buf[3] == 0x2) {
+		return true;
+	} else
+		return false;	
+}
+//<asus demonapp>
+#endif
 
 //<ASUS alexwang20160309>support charger limit enable++++
-#ifdef ASUS_FACTORY_BUILD
+//#ifdef ASUS_FACTORY_BUILD
 #define	CHARGING_LIMIT_PROC_FILE "driver/charging_limit"
-
 struct delayed_work charging_limit_work;
 void charger_limit_update_work(int time)
 {
@@ -8706,22 +8775,26 @@ static ssize_t charger_limit_proc_write(struct file *filp, const char __user *bu
 {
 	char messages[256];
 
-	if (len > 256) {
+	if (len > 256)
 		len = 256;
-	}
 
-	if (copy_from_user(messages, buff, len)) {
+	if (copy_from_user(messages, buff, len))
 		return -EFAULT;
-	}
-
 	sscanf(buff,"%d",&charger_limit_setting);
 
 	if(charger_limit_setting<10)
 		charger_limit_setting=10;
 	else if(charger_limit_setting>100)
 		charger_limit_setting=100;
-	printk("  limit=%d\n", charger_limit_setting);
-	charger_limit_update_work(0);
+	
+	pr_info("[Charger]%s charger_limit_setting=%d charger_limit_enable=%d\n",__FUNCTION__,charger_limit_setting,charger_limit_enable);
+	if (charger_limit_enable)
+		charger_limit_update_work(0);
+	else{
+		cancel_delayed_work(&the_chip->asus_batt_temp_work);
+		schedule_delayed_work(&the_chip->asus_batt_temp_work,0*HZ);
+		}
+	
 	return len;
 }
 
@@ -8743,9 +8816,8 @@ static void create_charger_limit_proc_file(void)
 	struct proc_dir_entry *charger_limit_proc_file = proc_create(CHARGING_LIMIT_PROC_FILE, 0777, NULL, &charger_limit_fops);
 
 	if (charger_limit_proc_file) {
-		printk("[BAT][CHG][SMB][Proc]charger_limit create ok!\n");
 	} else{
-		printk("[BAT][CHG][SMB][Proc]charger_limit create failed!\n");
+		pr_info("[Charger]%s fail\n",__FUNCTION__);
 	}
 	return;
 }
@@ -8754,33 +8826,32 @@ void asus_battery_charging_limit(struct work_struct *dat)
 {
 	int percentage;
 	int rc;
-	printk("[%s],charger_limit_enable = %d,charger_limit_setting=%d\n",__FUNCTION__,charger_limit_enable,charger_limit_setting);
+	
 	percentage = get_prop_batt_capacity(the_chip);
 	if (charger_limit_enable) {
-			if (percentage < charger_limit_setting-1) {
-				printk("[%s], percent: %d < charger_limit_setting , enable charging\n", __FUNCTION__, percentage);
-				charger_flag = true;
-			}else if(percentage >= charger_limit_setting){
-				printk("[%s], percent: %d >= charger_limit_setting , disable charging\n", __FUNCTION__, percentage);
-				charger_flag = false;
-			}else{
-				printk("[%s], percent: charger_limit_setting-10 <%d < charger_limit_setting,now %s\n", 
-					   __FUNCTION__, percentage,(charger_flag ? "charging":"discharging"));
-				
-			}
+		if (percentage < charger_limit_setting-5) {
+			pr_info("[%s], percent: %d < charger_limit_setting , enable charging\n", __FUNCTION__, percentage);
+			charger_flag = true;
+		}else if(percentage >= charger_limit_setting){
+			pr_info("[%s], percent: %d >= charger_limit_setting , disable charging\n", __FUNCTION__, percentage);
+			charger_flag = false;
+		}else{
+			pr_info("[%s], percent: charger_limit_setting-5 <%d < charger_limit_setting,now %s\n", 
+				   __FUNCTION__, percentage,(charger_flag ? "charging":"discharging"));
+			
+		}
 	}
 
 	rc = vote(the_chip->usb_suspend_votable, USER_EN_VOTER, !charger_flag, 0);
 	if(rc < 0)
-		{
-			pr_info("charger usb_suspend disable failed\n");
-		}
-	if(get_prop_batt_status(the_chip)==POWER_SUPPLY_STATUS_CHARGING){
+		pr_info("charger usb_suspend disable failed\n");
+	
+	if(get_prop_batt_status(the_chip)==POWER_SUPPLY_STATUS_CHARGING)
 		charger_limit_update_work(60);
-	}else{
-		charger_limit_update_work(180);}
+	else
+		charger_limit_update_work(180);
 }
-#endif
+//#endif
 //<ASUS alexwang20160309>support charger limit enable----
 //<ASUS-alexwang20160309-2>support asus factory battery voltage and current++++
 #ifdef ASUS_FACTORY_BUILD
@@ -8922,44 +8993,55 @@ static void create_asus_charge_type_proc_file(void)
 		printk("[BAT][CHG][SMB][Proc]ASUS_CHARGE_TYPE_PROC_FILE create failed!\n");
 	}
 }
+#endif
+
 //<ASUS-alexwang 20160518>
 #define ASUS_CHARGE_LIMIT_ENABLE_PROC_FILE "driver/charger_limit_enable"
-
 static int asus_charge_limit_enable_proc_read(struct seq_file *buf, void *data)
 {
-
-    seq_printf(buf, "charger_limit_enable = %d\n",charger_limit_enable);
+	seq_printf(buf, "charger_limit_enable = %d\n",charger_limit_enable);
 	return 0;
 }
 static ssize_t asus_charge_limit_enable_proc_write(struct file *filp, const char __user *buff,
 		size_t len, loff_t *data)
 {
 	char messages[256];
-    int flag;
-	if (len > 256) {
+	int flag;
+	if (len > 256)
 		len = 256;
-	}
 
-	if (copy_from_user(messages, buff, len)) {
+	if (copy_from_user(messages, buff, len))
 		return -EFAULT;
-	}
 
 	sscanf(buff,"%d",&flag);
-
+	
 	if (flag == 1) {
-		charger_limit_enable = true;
-		charger_flag= true;
-		// turn on charging limit in factory mode
-		printk("[BAT][CHG][SMB][Proc]charger_enable");
+#ifndef ASUS_SKU_CN
+		if(Check_ADF_Value()){	
+			charger_limit_enable = true;
+			charger_flag= true;
+			pr_info("charge_limit_enable\n");
+		}else{
+			charger_limit_enable = false;
+			charger_flag = true;
+			cancel_delayed_work(&charging_limit_work);
+			pr_info("charge_limit_disable_1\n");
+		}
+#else
+                        charger_limit_enable = true;
+			charger_flag= true;
+			pr_info("charge_limit_enable\n");
+#endif
 	} else if(flag == 0) {
 		charger_limit_enable = false;
 		charger_flag = true;
-		// turn off charging limit in factory mode 
-		printk("[BAT][CHG][SMB][Proc]charger_disable");
+		cancel_delayed_work(&charging_limit_work);
+		pr_info("charge_limit_disable_0\n");
 	}else{
-	    printk("[BAT][CHG][SMB][Proc]input error");
+	    	pr_info("%s input error",__FUNCTION__);
 	}
-	charger_limit_update_work(0);
+	//charger_limit_update_work(0);
+	
 	return len;
 }
 static int asus_charge_limit_enable_proc_open(struct inode *inode, struct file *file)
@@ -8979,12 +9061,11 @@ static void create_asus_charge_limit_enable_proc_file(void)
 	struct proc_dir_entry *asus_charge_limit_enable_proc_file = proc_create(ASUS_CHARGE_LIMIT_ENABLE_PROC_FILE, 0777, NULL, &asus_charge_limit_enable_fops);
 
 	if (asus_charge_limit_enable_proc_file) {
-		printk("[BAT][CHG][SMB][Proc]ASUS_CHARGE_TYPE_PROC_FILE create ok!\n");
-	} else{
-		printk("[BAT][CHG][SMB][Proc]ASUS_CHARGE_TYPE_PROC_FILE create failed!\n");
-	}
+	} else
+		pr_info("%s fail",__FUNCTION__);
 }
 
+#ifdef ASUS_FACTORY_BUILD
 #define ASUS_BATT_CHARGE_ENABLE_PROC_FILE "driver/batt_charge_enable"
 
 static int asus_batt_charge_enable_proc_read(struct seq_file *buf, void *data)
@@ -9260,6 +9341,10 @@ static void asus_dual_enable_1(struct smbchg_chip *chip)
 	printk("[CHARGE]we should disable 1351 since factory disable it\n");
 	}
 #endif
+
+	if(!charger_flag)
+		enable=false;
+
 	//get aub_alert vote value, if value =1, the pmic has been charge, so disable 1351
 	if(get_client_vote(chip->usb_suspend_votable,USB_ALERT_VOTER)){
 		enable =false;
@@ -9301,6 +9386,10 @@ static void asus_dual_enable_2(struct smbchg_chip *chip)
 		printk("[CHARGE]we should disable 1351 since factory disable it\n");
 		}
 #endif
+
+	if(!charger_flag)
+		enable=false;
+
 	//get aub_alert vote value, if value =1, the pmic has been charge, so disable 1351
 	if(get_client_vote(chip->usb_suspend_votable,USB_ALERT_VOTER)){
 		enable =false;
@@ -9368,7 +9457,7 @@ static void asus_soft_jeita_recharge(struct smbchg_chip *chip)
 	
 }
 
-static void asus_show_reg(struct smbchg_chip *chip,u16 addr)
+/*static void asus_show_reg(struct smbchg_chip *chip,u16 addr)
 {
 	u8 reg;
 	smbchg_read(chip, &reg, addr, 1);
@@ -9382,7 +9471,7 @@ static void asus_soft_jeita_reg_show(struct smbchg_chip *chip)
 	asus_show_reg(chip,0x10F4);
 	asus_show_reg(chip,0x10F2);
 	asus_show_reg(chip,0x13F2);
-}
+}*/
 static void asus_soft_jeita_config_zd552kl(struct smbchg_chip *chip,bool *charging_enable,int *fcc_value, int *float_volt)
 {
 	bool change;
@@ -9517,8 +9606,8 @@ static int asus_do_soft_jeita(struct smbchg_chip *chip)
 
 	//update jeita state according  to batt_temp
 	asus_jeita_judge_state(chip,batt_temp);
-	printk("[BATT]soft_jeita_state=%d\n",chip->soft_jeita_state);
-	printk("asus_do_soft_jeita voltage=%dmV,temp=%d\n",batt_volt/1000,batt_temp);
+	printk("[BATT]soft_jeita_state=%d, voltage=%dmV,temp=%d\n",chip->soft_jeita_state,
+			batt_volt/1000,batt_temp);
 
 	if(asus_project_id==ASUS_ZC552KL){
 		asus_soft_jeita_config_zc552kl(chip,&charging_enable,&fcc_value,&float_volt);
@@ -9528,8 +9617,8 @@ static int asus_do_soft_jeita(struct smbchg_chip *chip)
 		asus_soft_jeita_config_zd552kl(chip,&charging_enable,&fcc_value,&float_volt);
 	}	
 
-	printk("[BATT]jeita set fcc =%d, float_volt =%d,charging_en = %d\n",
-		fcc_value,float_volt,charging_enable);
+	printk("[BATT]jeita set fcc =%d, float_volt =%d,charging_en = %d charger_flag=%d\n",
+		fcc_value,float_volt,charging_enable,charger_flag);
 	//set fcc
 	ret = vote(chip->fcc_votable, BATT_TYPE_FCC_VOTER, true,
 			fcc_value);
@@ -9548,14 +9637,13 @@ static int asus_do_soft_jeita(struct smbchg_chip *chip)
 	vote(chip->battchg_suspend_votable, BATTCHG_JEITA_EN_VOTER,!charging_enable, 0);
 
 //to suspend charging when limit reachs
-#ifdef ASUS_FACTORY_BUILD	
-	printk("[BATT][FAC]charge_flag = %d,charge_batt_enable = %d\n",charger_flag,charger_batt_enable);
+
 	if(charger_flag){
 		vote(chip->usb_suspend_votable, USER_EN_VOTER, false, 0);
 	}else{
 		vote(chip->usb_suspend_votable, USER_EN_VOTER, true, 0);
 	}
-	
+#ifdef ASUS_FACTORY_BUILD		
 	if(charger_batt_enable){
 		vote(chip->usb_suspend_votable, ATD_CMD_VOTER, false, 0);
 	}else{
@@ -9577,7 +9665,7 @@ static int asus_do_soft_jeita(struct smbchg_chip *chip)
 		asus_soft_jeita_recharge(chip);
 	}
 
-	asus_soft_jeita_reg_show(chip);
+	//asus_soft_jeita_reg_show(chip);
 	//if(g_Charger_mode)
 		//schedule_delayed_work(&chip->LED_ChargerMode, 0*HZ);
 	return ret;
@@ -9608,17 +9696,17 @@ static void asus_batt_temp_work(struct work_struct *work)
 	if(batt_charge_state == true){
 		ret = asus_do_soft_jeita(chip);
 		if(!ret){
-			printk("[CHARGE]%s do soft jeita after 60s\n",__FUNCTION__);
+			//printk("[CHARGE]%s do soft jeita after 60s\n",__FUNCTION__);
 			cancel_delayed_work(&chip->asus_batt_temp_work);
 			schedule_delayed_work(&chip->asus_batt_temp_work,
 					60*HZ);
 		}else{
-			printk("[CHARGE]%s do soft jeita after 5s\n",__FUNCTION__);
+			//printk("[CHARGE]%s do soft jeita after 5s\n",__FUNCTION__);
 			cancel_delayed_work(&chip->asus_batt_temp_work);
 			schedule_delayed_work(&chip->asus_batt_temp_work,5*HZ);
 		}
 	}else{
-		printk("[CHARGE]%s do soft jeita after 60s\n",__FUNCTION__);
+		//printk("[CHARGE]%s do soft jeita after 60s\n",__FUNCTION__);
 		cancel_delayed_work(&chip->asus_batt_temp_work);
 		schedule_delayed_work(&chip->asus_batt_temp_work,
 					60*HZ);
@@ -10141,26 +10229,20 @@ static void asus_adapter_read_adc_work(struct work_struct *work)
 
 	chip->read_adc_ignore = false;
 //in factory if diable charging ,here we will not let usb out of suspend
-#ifdef ASUS_FACTORY_BUILD
-		if(charger_flag == true)
-		{
-			rc = vote(the_chip->usb_suspend_votable, USER_EN_VOTER,false, 0);
-			if(rc < 0)
-			{
-				pr_info("charger usb_suspend disable failed\n");
-			}
-		}
-		else
-		{
-			pr_info("factory limit disable charging, skip disable usb suspend \n");
-		}
-#else
-	rc=vote(chip->usb_suspend_votable, USER_EN_VOTER,false, 0);
-	if(rc){
-		pr_smb(PR_STATUS, "charger usb_suspend disable failed\n");
-	}
-#endif
 
+	if(charger_flag == true)
+	{
+		rc = vote(the_chip->usb_suspend_votable, USER_EN_VOTER,false, 0);
+		if(rc < 0)
+		{
+			pr_info("charger usb_suspend disable failed\n");
+		}
+	}
+	else
+	{
+		pr_info("demo app limit disable charging, skip disable usb suspend \n");
+	}
+		
 	msleep(100);  //wait suspend disable,power ok again
 	asus_adapter_detect_reset_work(chip);
 
@@ -11611,13 +11693,27 @@ static int smbchg_probe(struct spmi_device *spmi)
 		dev_err(&spmi->dev, "Unable to request irqs rc = %d\n", rc);
 		goto unregister_led_class;
 	}
+	
+	if(chip->usb_present != is_usb_present(chip))
+	{
+		printk("[CHARGE]usb present change after irq request,update\n");
+		if (is_usb_present(chip)) {
+			pr_smb(PR_MISC, "setting usb psy dp=f dm=f\n");
+				power_supply_set_dp_dm(chip->usb_psy,
+					POWER_SUPPLY_DP_DM_DPF_DMF);
+			handle_usb_insertion(chip);
+		} else {
+			handle_usb_removal(chip);
+		}	
+	}
 //<ASUS alexwang20160309>support charger limit enable+++   
-#ifdef ASUS_FACTORY_BUILD
 	the_chip = chip;
-	create_charger_limit_proc_file();
-	charger_limit_setting=60;
 	charger_flag=true;
+	create_charger_limit_proc_file();
+	create_asus_charge_limit_enable_proc_file();
 	INIT_DELAYED_WORK(&charging_limit_work,asus_battery_charging_limit);
+#ifdef ASUS_FACTORY_BUILD	
+	charger_limit_setting=60;		
 	schedule_delayed_work(&charging_limit_work, 5 * HZ);
 #endif
 //<ASUS alexwang20160309>support charger limit enable--- 
@@ -11626,7 +11722,6 @@ static int smbchg_probe(struct spmi_device *spmi)
 	create_batt_voltage_proc_file();
     create_batt_current_proc_file();
 	create_asus_charge_type_proc_file();
-	create_asus_charge_limit_enable_proc_file();
 	create_asus_batt_charge_enable_proc_file();
 #endif
 //<ASUS-alexwang20160309-2>support asus factory battery voltage and current----

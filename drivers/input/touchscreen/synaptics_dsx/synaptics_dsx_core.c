@@ -5472,6 +5472,8 @@ int asus_rmi4_suspend(void)
 	int ret,count=0;
 	char reg_val;
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
+	char nosleep[1]={0x00};
+	int retval;
 	
 	printk("[Touch] : asus_rmi4_suspend\n");
 	if (asus_rmi4_data->stay_awake)
@@ -5482,6 +5484,9 @@ int asus_rmi4_suspend(void)
 		synaptics_rmi4_wakeup_gesture(asus_rmi4_data, true);
 		enable_irq_wake(asus_rmi4_data->irq);
 		synaptics_rmi4_free_fingers(asus_rmi4_data);
+		retval = synaptics_rmi4_reg_write(asus_rmi4_data,0x000d,nosleep,1);
+		if (retval < 0)
+			printk("[TOUCH] : Suspend WRITE 0x000d  idel mode ERROR\n");
 		goto exit;
 	}
 
@@ -5584,6 +5589,8 @@ exit:
 int asus_rmi4_resume(void)
 {
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
+	char nosleep[1]={0x04};
+	int retval;
 
 	if (asus_rmi4_data->stay_awake)
 		return 0;
@@ -5600,6 +5607,7 @@ int asus_rmi4_resume(void)
 	asus_rmi4_data->current_page = MASK_8BIT;
 
 	//synaptics_rmi4_sleep_enable(asus_rmi4_data, false);
+	//asus_rmi4_data->sensor_sleep = false;
 	synaptics_rmi4_irq_enable(asus_rmi4_data, true, false);
 
 exit:
@@ -5609,6 +5617,10 @@ exit:
 	synaptics_rmi4_free_fingers(asus_rmi4_data);
 	msleep(20);
 	printk("[Touch] : end finger start\n");
+
+	retval = synaptics_rmi4_reg_write(asus_rmi4_data,0x000d,nosleep,1);
+	if (retval < 0)
+		printk("[Touch] : resume WRITE 0x000d idel mode ERROR\n");
 	
 	mutex_lock(&exp_data.mutex);
 	if (!list_empty(&exp_data.list)) {

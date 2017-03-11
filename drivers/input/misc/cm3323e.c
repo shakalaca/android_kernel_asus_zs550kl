@@ -830,7 +830,7 @@ static int rgbsensor_setup(struct cm3323e_info *lpi)
 		goto err_free_misc_device;
 	}
 
-		pr_err("[LS][CM3323E test]%s:anna  test \n",__func__);
+		//pr_err("[LS][CM3323E test]%s:anna  test \n",__func__);
 	return ret;
 	
 err_free_misc_device:
@@ -853,7 +853,7 @@ static int cm3323e_setup(struct cm3323e_info *lpi)
 	ret = _cm3323e_I2C_Write_Word(CM3323E_ADDR, CM3323E_CONF, CM3323E_CONF_DEFAULT | CM3323E_CONF_IT_160MS | CM3323E_CONF_SD);
 	if(ret < 0)
 		return ret;
-		pr_err("[LS][CM3323E test]%s: anna 11test cm3323\n",__func__);
+	//	pr_err("[LS][CM3323E test]%s: anna 11test cm3323\n",__func__);
 	// Enable CM3323E
 	ret = _cm3323e_I2C_Write_Word(CM3323E_ADDR, CM3323E_CONF, CM3323E_CONF_DEFAULT | CM3323E_CONF_IT_160MS);
 	if(ret < 0)
@@ -865,7 +865,7 @@ static int cm3323e_setup(struct cm3323e_info *lpi)
 		pr_err("[LS][CM3323E error]%s: _cm3323e_I2C_Read_Word for RED fail\n",__func__);
 		return -EIO;
 	}
-	pr_err("[LS][CM3323E test]%s: anna 22test cm3323 CM3323E_CONF=%d, adc_data=%d\n",__func__,CM3323E_CONF,adc_data);
+	//pr_err("[LS][CM3323E test]%s: anna 22test cm3323 CM3323E_CONF=%d, adc_data=%d\n",__func__,CM3323E_CONF,adc_data);
 	
 
 	msleep(200);
@@ -876,7 +876,7 @@ static int cm3323e_setup(struct cm3323e_info *lpi)
 		pr_err("[LS][CM3323E error]%s: _cm3323e_I2C_Read_Word for RED fail\n",__func__);
 		return -EIO;
 	}
-	pr_err("[LS][CM3323E test]%s: anna 22test cm3323 red= adc_data=%d\n",__func__,adc_data);
+//	pr_err("[LS][CM3323E test]%s: anna 22test cm3323 red= adc_data=%d\n",__func__,adc_data);
 	// Get initial GREEN rgb data
 	ret = _cm3323e_I2C_Read_Word(CM3323E_ADDR, CM3323E_G_DATA, &adc_data);
 	if (ret < 0) {
@@ -885,7 +885,7 @@ static int cm3323e_setup(struct cm3323e_info *lpi)
 			__func__);
 		return -EIO;
 	}	
-	pr_err("[LS][CM3323E test]%s: anna 33test cm3323 ,green=adc_data=%d\n",__func__,adc_data);
+//	pr_err("[LS][CM3323E test]%s: anna 33test cm3323 ,green=adc_data=%d\n",__func__,adc_data);
 	// Get initial BLUE rgb data
 	ret = _cm3323e_I2C_Read_Word(CM3323E_ADDR, CM3323E_B_DATA, &adc_data);
 	if (ret < 0) {
@@ -894,7 +894,7 @@ static int cm3323e_setup(struct cm3323e_info *lpi)
 			__func__);
 		return -EIO;
 	}
-	pr_err("[LS][CM3323E test]%s: anna 33test cm3323 ,,bule=adc_data=%d\n",__func__,adc_data);
+//	pr_err("[LS][CM3323E test]%s: anna 33test cm3323 ,,bule=adc_data=%d\n",__func__,adc_data);
 	// Get initial WHITE rgb data
 	ret = _cm3323e_I2C_Read_Word(CM3323E_ADDR, CM3323E_W_DATA, &adc_data);
 	if (ret < 0) {
@@ -903,7 +903,7 @@ static int cm3323e_setup(struct cm3323e_info *lpi)
 			__func__);
 		return -EIO;
 	}
-	pr_err("[LS][CM3323E test]%s: anna 44test cm3323 ,CM3323E_W_DATA,adc_data=%d\n",__func__,adc_data);
+//	pr_err("[LS][CM3323E test]%s: anna 44test cm3323 ,CM3323E_W_DATA,adc_data=%d\n",__func__,adc_data);
 	return ret;
 }
 
@@ -991,7 +991,7 @@ static int cm3323e_probe(struct i2c_client *client,
 	ret = device_create_file(lpi->ls_dev, &dev_attr_rgb_white);
 	ret = device_create_file(lpi->ls_dev, &dev_attr_rgb_debug_enable);
 	ret = device_create_file(lpi->ls_dev, &dev_attr_rgb_status);
-	D("[CM3323E] %s: anna test node ok\n", __func__);
+//	D("[CM3323E] %s: anna test node ok\n", __func__);
 	if (ret)
 		goto err_create_ls_device_file;
 	lpi->als_enable = 0;
