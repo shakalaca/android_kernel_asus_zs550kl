@@ -8,7 +8,7 @@
 #include "show_log.h"
 
 /* Log status */
-static bool DEBUG_CDEB = true;	/* Major debug log */
+static bool DEBUG_CDEB = false;	/* Major debug log */
 static bool DEBUG_DBG = false;	/* General debug log */
 static bool DEBUG_REG = false;	/* I2C register debug log */
 static bool DEBUG_API = false;	/* API debug log */

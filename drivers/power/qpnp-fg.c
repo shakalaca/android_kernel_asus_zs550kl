@@ -2285,7 +2285,7 @@ static int get_prop_capacity(struct fg_chip *chip)
 			pr_info("relax keep 100\n");
 		}
 		charge_full_status = 1;
-		pr_info("soc_raw:%d\n",soc_raw_optimize(chip));
+		pr_info_ratelimited("soc_raw:%d\n",soc_raw_optimize(chip));
 		return FULL_CAPACITY;
 	}
 
@@ -3376,6 +3376,7 @@ static enum power_supply_property fg_power_props[] = {
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
 	POWER_SUPPLY_PROP_CYCLE_COUNT_ID,
 	POWER_SUPPLY_PROP_HI_POWER,
+	POWER_SUPPLY_PROP_SOC_REPORTING_READY,
 };
 
 static int fg_power_get_property(struct power_supply *psy,
@@ -3462,6 +3463,9 @@ static int fg_power_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_HI_POWER:
 		val->intval = !!chip->bcl_lpm_disabled;
+		break;
+	case POWER_SUPPLY_PROP_SOC_REPORTING_READY:
+		val->intval = !!chip->profile_loaded;
 		break;
 	default:
 		return -EINVAL;
@@ -4408,7 +4412,7 @@ static int fg_power_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_STATUS:
 		chip->prev_status = chip->status;
 		chip->status = val->intval;
-		pr_info("battery prev_status:%d  now_status:%d\n",chip->prev_status,chip->status);
+		pr_debug("battery prev_status:%d  now_status:%d\n",chip->prev_status,chip->status);
 		schedule_work(&chip->status_change_work);
 		check_gain_compensation(chip);
 		break;
@@ -5971,6 +5975,15 @@ wait:
 	profiles_same = memcmp(chip->batt_profile, data,
 					PROFILE_COMPARE_LEN) == 0;
 	if (reg & PROFILE_INTEGRITY_BIT) {
+		pr_info("vbat_in_range = %d, batt_empty = %d, profiles_same = %d, msoc:%d, V:%duV, CPRED_V:%duV ,%d\n",		
+		vbat_in_range ? 1 : 0,
+		fg_is_batt_empty(chip) ? 1 : 0,
+		profiles_same ? 1 : 0,
+		get_monotonic_soc_raw(chip),
+		fg_data[FG_DATA_VOLTAGE].value,
+		fg_data[FG_DATA_CPRED_VOLTAGE].value,
+		settings[FG_MEM_VBAT_EST_DIFF].value);
+		
 		fg_cap_learning_load_data(chip);
 		if (vbat_in_range && !fg_is_batt_empty(chip) && profiles_same) {
 			if (fg_debug_mask & FG_STATUS)
@@ -6091,8 +6104,8 @@ done:
 	if (chip->power_supply_registered)
 		power_supply_changed(&chip->bms_psy);
 	fg_relax(&chip->profile_wakeup_source);
-	pr_info("Battery SOC: %d, V: %duV\n", get_prop_capacity(chip),
-		fg_data[FG_DATA_VOLTAGE].value);
+	pr_info("Battery SOC: %d, V: %duV, C:%duA\n", get_prop_capacity(chip),
+		fg_data[FG_DATA_VOLTAGE].value,fg_data[FG_DATA_CURRENT].value);
 	complete_all(&chip->fg_reset_done);
 	return rc;
 no_profile:
@@ -8092,7 +8105,7 @@ static void delayed_init_work(struct work_struct *work)
 		update_temp_data(&chip->update_temp_work.work);
 
 	if (!chip->use_otp_profile)
-		schedule_delayed_work(&chip->batt_profile_init, 0);
+		schedule_delayed_work(&chip->batt_profile_init, 8*HZ);
 
 	if (chip->ima_supported && fg_reset_on_lockup)
 		schedule_delayed_work(&chip->check_sanity_work,
@@ -8151,7 +8164,7 @@ static void create_gauge_proc_file(void)
 	struct proc_dir_entry *asus_gauge_proc_file = proc_create("Gauge_Status", 0666, NULL, &gauge_fops);
 
 	if (asus_gauge_proc_file) {
-		printk("create_gauge_proc_file create ok!\n");
+		//printk("create_gauge_proc_file create ok!\n");
 	} else{
 		printk("create_gauge_proc_file create failed!\n");
 	}

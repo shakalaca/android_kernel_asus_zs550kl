@@ -67,8 +67,6 @@ struct msm_camera_i2c_fn_t {
 		struct msm_camera_i2c_reg_setting *);
 	int32_t (*i2c_write_table_sync_block)(struct msm_camera_i2c_client *,
 		struct msm_camera_i2c_reg_setting *);
-	uint32_t msm_i2c_agent_master_addr;
-    uint32_t msm_i2c_agent_slave_addr;
 };
 
 int32_t msm_camera_cci_i2c_read(struct msm_camera_i2c_client *client,
@@ -153,8 +151,5 @@ int32_t msm_camera_qup_i2c_write_conf_tbl(
 int32_t msm_camera_qup_i2c_poll(struct msm_camera_i2c_client *client,
 	uint32_t addr, uint16_t data,
 	enum msm_camera_i2c_data_type data_type, uint32_t delay_ms);
-
-bool msm_camera_cci_i2c_check_ois_special_cmd(void);
-void msm_camera_cci_i2c_reset_ois_special_cmd(void);
 
 #endif

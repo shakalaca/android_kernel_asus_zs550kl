@@ -50,7 +50,7 @@ int us5587_read_reg(int reg, u8 *val)
 	} else {
 		*val = ret;
 	}
-	printk("Reading 0x%02x=0x%02x\n", reg, *val);
+	pr_debug("Reading 0x%02x=0x%02x\n", reg, *val);
 	return 0;
 }
 
@@ -102,7 +102,7 @@ static u8 Convert_Voltage2temp(u8 data){
 			
 		}
 	}
-	printk("Convert_Voltage2temp i:%d,data:%x,temp:%d\n",i,data,temp);
+	pr_debug("Convert_Voltage2temp i:%d,data:%x,temp:%d\n",i,data,temp);
 	return temp;
 
 }
@@ -163,7 +163,7 @@ static void create_prt8301_proc_file(void)
 	struct proc_dir_entry *PRT8301_proc_file = proc_create("PRT8301_temp", 0666, NULL, &PRT8301_fops);
 
 	if (PRT8301_proc_file) {
-		printk("PRT8301_proc_file create ok!\n");
+		//printk("PRT8301_proc_file create ok!\n");
 	} else{
 		printk("PRT8301_proc_file create failed!\n");
 	}
@@ -198,7 +198,7 @@ static void create_prt8302_proc_file(void)
 	struct proc_dir_entry *PRT8302_proc_file = proc_create("PRT8302_temp", 0666, NULL, &PRT8302_fops);
 
 	if (PRT8302_proc_file) {
-		printk("PRT8302_proc_file create ok!\n");
+		//printk("PRT8302_proc_file create ok!\n");
 	} else{
 		printk("PRT8302_proc_file create failed!\n");
 	}
@@ -232,7 +232,7 @@ static void create_us5587_proc_file(void)
 	struct proc_dir_entry *asus_us5587_proc_file = proc_create(ASUS_US5587_PROC_FILE, 0666, NULL, &us5587_fops);
 
 	if (asus_us5587_proc_file) {
-		printk("create_us5587_proc_file create ok!\n");
+		//printk("create_us5587_proc_file create ok!\n");
 	} else{
 		printk("create_us5587_proc_file create failed!\n");
 	}
@@ -243,9 +243,7 @@ int asus_judge_thermal_level(struct us5587 *chip,int temp,bool on){
 	int level,pre_level;
 
 	pre_level = chip->thermal_level;
-		
-	printk("[US5587]panel %s,temp =%d\n",on ? "on":"off",temp);
-		
+				
 	if(temp < chip->thermal_temp[on*3+0]){
 			level = 0;
 	}else if(temp < chip->thermal_temp[on*3+1]){
@@ -277,8 +275,8 @@ int asus_judge_thermal_level(struct us5587 *chip,int temp,bool on){
 	}else if(level ==1 && pre_level ==0){
 		if(temp < chip->thermal_temp[on*3+0]+2)
 			level =0;
-	}		
-	printk("[US5587]thermal level now is %d,pre is %d\n",level,pre_level);
+	}
+	pr_debug("[US5587]panel %s,temp =%d now is %d,pre is %d\n",on ? "on":"off",temp,level,pre_level);
 	return level;
 }
 
@@ -306,10 +304,10 @@ void asus_polling_temp_work(struct work_struct *work){
 	}
 
 	if(gdata->panel_info.panel_power_state ==1){
-		printk("[US5587]panel on, next polling temp 10s\n");
+		pr_debug("[US5587]panel on, next polling temp 10s\n");
 		schedule_delayed_work(&chip->polling_temp_work,10*HZ);
 	}else{
-		printk("[US5587]panel off, next polling temp 60s\n");
+		pr_debug("[US5587]panel off, next polling temp 60s\n");
 		schedule_delayed_work(&chip->polling_temp_work,60*HZ);
 	}
 }
@@ -319,26 +317,26 @@ void us5587_thermal_policy(bool run_if)
 	struct power_supply *batt_chg;
 	batt_chg = power_supply_get_by_name("battery");
 	if (!batt_chg) {
-		printk("[US5587]charge supply not found, could not set thermal levelto it\n");
+		pr_err("[US5587]charge supply not found, could not set thermal levelto it\n");
 	}
 	
 	if(us5587_chip){
 		if(run_if){
-			printk("[CHARGE][US5587]now thermal_policy start");
+			pr_info("[CHARGE][US5587]now thermal_policy start");
 			cancel_delayed_work(&us5587_chip->polling_temp_work);
 			schedule_delayed_work(&us5587_chip->polling_temp_work,20*HZ);
 		}else{
-			printk("[CHARGE][US5587]now thermal_policy stop");
+			pr_info("[CHARGE][US5587]now thermal_policy stop");
 			us5587_chip->thermal_level=0;
 			cancel_delayed_work(&us5587_chip->polling_temp_work);
 			value.intval= 0 ;
-			printk("[CHARGE][US5587]set charge thermal level =%d\n",value.intval);
+			pr_debug("[CHARGE][US5587]set charge thermal level =%d\n",value.intval);
 			if(batt_chg){
 				batt_chg->set_property(batt_chg,POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL,&value);
 			}
 		}
 	}else{
-		printk("[US6687] us5587 not in\n");
+		pr_err("[US6687] us5587 not in\n");
 	}
 }
 
@@ -402,7 +400,7 @@ static void create_thermal_temp_proc_file(void)
 	struct proc_dir_entry *thermal_temp_proc_file = proc_create("driver/thermal_temp", 0666, NULL, &thermal_temp_fops);
 
 	if (thermal_temp_proc_file) {
-		printk("thermal_temp_proc_file create ok!\n");
+		//printk("thermal_temp_proc_file create ok!\n");
 	} else{
 		printk("thermal_temp_proc_file create failed!\n");
 	}
@@ -416,7 +414,7 @@ int  asus_us5587_adc(bool enable)
 		return 0;
 	}
 
-	pr_info("%s enable:%d\n",__FUNCTION__,enable);
+	pr_debug("%s enable:%d\n",__FUNCTION__,enable);
 	us5587_adc_enable = enable;
 	if(enable)
 		gpio_direction_output(us5587_chip->adc_en_gpio, 0);
@@ -451,13 +449,13 @@ static int us5587_probe(struct i2c_client *client,
 		pr_err("Failed to detect us5587, device may be absent\n");
 		return -ENODEV;
 	}
-	printk("us5587 chip revision is %x\n", reg);
+	pr_debug("us5587 chip revision is %x\n", reg);
 	create_us5587_proc_file();
 	create_prt8301_proc_file();
 	create_prt8302_proc_file();
 		//request gpio for adc 
 	chip->adc_en_gpio= of_get_named_gpio(node, "us5587_adc_en", 0);
-	printk("us5587_adc_en_gpio = %d\n", chip->adc_en_gpio);
+	pr_debug("us5587_adc_en_gpio = %d\n", chip->adc_en_gpio);
 	
 	if ((!gpio_is_valid(chip->adc_en_gpio))) {
 		printk("%s: adc_pwr_en_gpio is not valid!\n", __FUNCTION__);
@@ -484,7 +482,7 @@ static int us5587_probe(struct i2c_client *client,
 	create_thermal_temp_proc_file();
 	if(!us5587_adc_enable)
 		gpio_direction_output(chip->adc_en_gpio, 1);
-	printk("us5587 probe ok\n");
+	pr_debug("us5587 probe ok\n");
 	return 0;
 }
 
@@ -525,7 +523,7 @@ static int  us5587_init(void){
 	s32 ret;
 
 	ret = i2c_add_driver(&us5587_driver);
-	printk("us5587_init!\n");
+	pr_debug("us5587_init!\n");
 	return ret;        
 }
 static void  us5587_exit(void) {

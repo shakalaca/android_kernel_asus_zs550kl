@@ -468,7 +468,7 @@ power_attr(wakeup_count);
 void dump_wakeup_sources_timer_expired(unsigned long data)
 {
 	pr_info("[PM]dump_wakeup_sources_timer_expired\n");
-    ASUSEvtlog("[PM]dump_wakeup_sources_timer_expired\n");
+    ASUSEvtlog("[PM]unattended_timer_expired\n");
     asus_dump_active_wakeup_sources(true);
 	mod_timer(&dump_wakeup_sources_timer, jiffies + msecs_to_jiffies(PM_DUMP_WAKEUP_TIMEOUT));
 }

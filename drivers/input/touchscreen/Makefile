@@ -91,5 +91,3 @@ obj-$(CONFIG_TOUCHSCREEN_MSTAR21XX)	+= msg21xx_ts.o
 #obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_RMI4_DEV)	+= synaptics_rmi_dev.o
 #obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE) 	+= synaptics_fw_update.o
 obj-$(CONFIG_TOUCHSCREEN_GT9XX)		+= gt9xx/
-obj-y += ftxxxx.o
-ftxxxx-objs += ftxxxx_ts.o ftxxxx_ex_fun.o focaltech_ctl.o ini.o test_lib.o

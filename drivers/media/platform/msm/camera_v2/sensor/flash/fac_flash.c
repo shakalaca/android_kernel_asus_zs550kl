@@ -737,7 +737,7 @@ static ssize_t flash_brightness_proc_write(struct file *dev, const char *buf, si
 	else
 	{
 		if(now_flash_brightness_value>100)now_flash_brightness_value=100;
-		set_val0 = 135*now_flash_brightness_value/100;
+		set_val0 = g_rear_torch_max_current*now_flash_brightness_value/100;
 		last_flash_brightness_value = set_val0;
 		set_val1=set_val0;
 		if(asus_project_id==ASUS_ZS550KL)
@@ -762,7 +762,7 @@ void create_brightness_proc_file(void* ctrl)
     last_flash_brightness_value = 0;
     flash_brightness_proc_file = proc_create_data(FLASH_BRIGHTNESS_PROC_FILE, 0666, NULL, &flash_brightness_fops,ctrl);
     if (flash_brightness_proc_file) {
-    	printk("%s [AsusFlashBrightness]flash_brightness_proc_file sucessed!\n", __func__);
+    	//printk("%s [AsusFlashBrightness]flash_brightness_proc_file sucessed!\n", __func__);
     } else {
     	printk("%s [AsusFlashBrightness]flash_brightness_proc_file failed!\n", __func__);
     }
@@ -825,7 +825,7 @@ void create_asus_flash_trigger_time_proc_file(void* ctrl)
 {
     asus_flash_trigger_time_proc_file = proc_create_data(FLASH_TRIGGER_PROC_FILE, 0666, NULL, &asus_flash_trigger_time_fops,ctrl);
     if (asus_flash_trigger_time_proc_file) {
-    	printk("%s [asus_flash_trigger_time]flash_brightness_proc_file sucessed!\n", __func__);
+    	//printk("%s [asus_flash_trigger_time]flash_brightness_proc_file sucessed!\n", __func__);
     } else {
     	printk("%s [asus_flash_trigger_time]flash_brightness_proc_file failed!\n", __func__);
     }

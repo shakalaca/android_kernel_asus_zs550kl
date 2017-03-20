@@ -24,6 +24,12 @@
 
 #include "locking/rtmutex_common.h"
 
+char evtlog_bootup_reason[100];
+char evtlog_poweroff_reason[100];
+char evtlog_warm_reset_reason[100];
+extern u8 download_mode_value;
+extern u16 warm_reset_value;
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 int entering_suspend = 0;
 #endif
@@ -795,7 +801,7 @@ void save_phone_hang_log(void)
     int ret;
     //---------------saving phone hang log if any -------------------------------
     g_phonehang_log = (char*)PHONE_HANG_LOG_BUFFER;
-    printk("[ASDF]save_phone_hang_log PRINTK_BUFFER=%p, PHONE_HANG_LOG_BUFFER=%p\n", PRINTK_BUFFER_VA, PHONE_HANG_LOG_BUFFER);
+    //printk("[ASDF]save_phone_hang_log PRINTK_BUFFER=%p, PHONE_HANG_LOG_BUFFER=%p\n", PRINTK_BUFFER_VA, PHONE_HANG_LOG_BUFFER);
     if(g_phonehang_log && ((strncmp(g_phonehang_log, "PhoneHang", 9) == 0) || (strncmp(g_phonehang_log, "ASUSSlowg", 9) == 0)) )
     {
         printk("[ASDF]save_phone_hang_log-1\n");
@@ -826,6 +832,8 @@ void save_last_shutdown_log(char* filename)
     int file_handle;
     unsigned long long t;
     unsigned long nanosec_rem;
+    char buffer[] = {"Kernel panic"};
+    int i;
 
     t = cpu_clock(0);
 	nanosec_rem = do_div(t, 1000000000);
@@ -840,9 +848,26 @@ void save_last_shutdown_log(char* filename)
     {
         sys_write(file_handle, (unsigned char*)last_shutdown_log, PRINTK_BUFFER_SLOT_SIZE);
         sys_close(file_handle);
+	 for(i=0; i<PRINTK_BUFFER_SLOT_SIZE; i++) {
+            // Check if it is kernel panic
+            if (strncmp((last_shutdown_log + i), buffer, strlen(buffer)) == 0) {
+                ASUSEvtlog("[Reboot] Kernel panic\n");
+                break;
+            }
+        }
     } else {
 		printk("[ASDF] save_last_shutdown_error: [%d]\n", file_handle);
 	}
+	
+	// Check PMIC register 0xA048 Bit1
+	if (download_mode_value & 0x02) {
+		ASUSEvtlog("[Reboot] Watchdog reset\n");
+	}
+	// Check PMIC register 0xA048 Bit0
+	if (download_mode_value & 0x01) {
+		ASUSEvtlog("[Reboot] Download mode\n");
+	}
+	
     deinitKernelEnv();
 
 }
@@ -886,7 +911,7 @@ void get_last_shutdown_log(void)
     ulong *printk_buffer_slot2_addr;
 
     printk_buffer_slot2_addr = (ulong *)PRINTK_BUFFER_SLOT2;
-    printk("[ASDF]get_last_shutdown_log: printk_buffer_slot2=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
+    //printk("[ASDF]get_last_shutdown_log: printk_buffer_slot2=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
     if(*printk_buffer_slot2_addr == (ulong)PRINTK_BUFFER_MAGIC) {
         save_last_shutdown_log("LastShutdown");
     }
@@ -912,7 +937,7 @@ static void do_write_event_worker(struct work_struct *work)
 	char buffer[256];
 	memset(buffer, 0, sizeof(char)*256);
 
-	printk("[ASDF] enter %s\n",__func__);
+	//printk("[ASDF] enter %s\n",__func__);
 	if (IS_ERR((const void *)(ulong)g_hfileEvtlog)) {
 		long size;
 		g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0444);
@@ -925,8 +950,25 @@ static void do_write_event_worker(struct work_struct *work)
 			sys_rename(ASUS_EVTLOG_PATH".txt", ASUS_EVTLOG_PATH"_old.txt");
 			g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0444);
 		}
-		sprintf(buffer, "\n\n---------------System Boot----%s---------\n", ASUS_SW_VER);
+		
+	        if (warm_reset_value) {
+	    		snprintf(buffer, sizeof(buffer),
+	                "\n\n---------------System Boot----%s---------\n"
+	                "[Reboot] Warm reset Reason: %s ###### \n"
+	                "###### Bootup Reason: %s ######\n",
+	                ASUS_SW_VER,
+	                evtlog_warm_reset_reason,
+	                evtlog_bootup_reason);
 
+	        } else {
+	    		snprintf(buffer, sizeof(buffer),
+	                "\n\n---------------System Boot----%s---------\n"
+	                "[Shutdown] Power off Reason: %s ###### \n"
+	                "###### Bootup Reason: %s ######\n",
+	                ASUS_SW_VER,
+	                evtlog_poweroff_reason,
+	                evtlog_bootup_reason);
+	        }
 		sys_write(g_hfileEvtlog, buffer, strlen(buffer));
 		sys_close(g_hfileEvtlog);
 	}
@@ -996,7 +1038,7 @@ void ASUSEvtlog(const char *fmt, ...)
 		ts.tv_sec -= sys_tz.tz_minuteswest * 60;
 		rtc_time_to_tm(ts.tv_sec, &tm);
 		getrawmonotonic(&ts);
-		sprintf(buffer, "[debug](%ld)%04d-%02d-%02d %02d:%02d:%02d :", ts.tv_sec, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		sprintf(buffer, "(%ld)%04d-%02d-%02d %02d:%02d:%02d :", ts.tv_sec, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 		/*printk(buffer);*/
 		va_start(args, fmt);
 		vscnprintf(buffer + strlen(buffer), ASUS_EVTLOG_STR_MAXLEN - strlen(buffer), fmt, args);
@@ -1013,7 +1055,7 @@ static ssize_t evtlogswitch_write(struct file *file, const char __user *buf, siz
 {
 	ulong *printk_buffer_slot2_addr;
 	if(strncmp(buf, "0", 1) == 0) {
-		ASUSEvtlog("ASUSEvtlog disable !!");
+		ASUSEvtlog("[ASDF] ASUSEvtlog disable !!");
 		printk("ASUSEvtlog disable !!\n");
 		flush_work(&eventLog_Work);
 		g_bEventlogEnable = 0;
@@ -1022,7 +1064,7 @@ static ssize_t evtlogswitch_write(struct file *file, const char __user *buf, siz
 	}
 	if (strncmp(buf, "1", 1) == 0) {
 		g_bEventlogEnable = 1;
-		ASUSEvtlog("ASUSEvtlog enable !!");
+		ASUSEvtlog("[ASDF] ASUSEvtlog enable !!");
 		printk("ASUSEvtlog enable !!\n");
 		printk_buffer_slot2_addr = (ulong *)PRINTK_BUFFER_SLOT2;
 		(*printk_buffer_slot2_addr) = (ulong)PRINTK_BUFFER_MAGIC;
@@ -1088,7 +1130,7 @@ static ssize_t asusdebug_write(struct file *file, const char __user *buf, size_t
 		ulong *printk_buffer_slot2_addr;
 
 		printk_buffer_slot2_addr = (ulong *)PRINTK_BUFFER_SLOT2;
-		printk("[ASDF] printk_buffer_slot2_addr=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
+		//printk("[ASDF] printk_buffer_slot2_addr=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
 
 		if(!asus_asdf_set) {
 			asus_asdf_set = 1;

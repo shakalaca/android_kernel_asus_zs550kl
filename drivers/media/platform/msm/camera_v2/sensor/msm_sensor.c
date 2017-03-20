@@ -17,12 +17,13 @@
 #include "msm_camera_i2c_mux.h"
 #include <linux/regulator/rpm-smd-regulator.h>
 #include <linux/regulator/consumer.h>
+
 #include "../fac_camera.h"
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
-int isPowerup=0; //ASUS_BSP PJ_Ma+++
+int isBackCamPowerup=0; //ASUS_BSP PJ_Ma+++
 
 static struct msm_sensor_ctrl_t *g_main_ctrl=NULL;	//ASUS_BSP Stimber_Hsueh
 
@@ -111,9 +112,10 @@ int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_i2c_client *sensor_i2c_client;
 	int rc = 0; //ASUS_BSP PJ_Ma+++
 
-	pr_err("%s : E\n", __func__); //ASUS_BSP PJ_Ma+++
+	//pr_err("%s : E\n", __func__); //ASUS_BSP PJ_Ma+++
+
 	if (!s_ctrl) {
-		pr_err("%s:%d failed: s_ctrl %p\n",
+		pr_err("%s:%d failed: s_ctrl %pK\n",
 			__func__, __LINE__, s_ctrl);
 		return -EINVAL;
 	}
@@ -126,16 +128,16 @@ int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 	sensor_i2c_client = s_ctrl->sensor_i2c_client;
 
 	if (!power_info || !sensor_i2c_client) {
-		pr_err("%s:%d failed: power_info %p sensor_i2c_client %p\n",
+		pr_err("%s:%d failed: power_info %pK sensor_i2c_client %pK\n",
 			__func__, __LINE__, power_info, sensor_i2c_client);
 		return -EINVAL;
 	}
 	//ASUS_BSP PJ_Ma+++
-	isPowerup=0;
+	isBackCamPowerup=0;
 	rc = msm_camera_power_down(power_info, sensor_device_type,
 		sensor_i2c_client);
 
-	pr_err("%s : rc=(%d) X\n", __func__, rc);
+	//pr_err("%s : rc=(%d) X\n", __func__, rc);
 	return rc;
 	//ASUS_BSP PJ_Ma---
 }
@@ -148,10 +150,11 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_slave_info *slave_info;
 	const char *sensor_name;
 	uint32_t retry = 0;
+	
+	//pr_err("%s : E\n", __func__); //ASUS_BSP PJ_Ma+++
 
-	pr_err("%s : E\n", __func__); //ASUS_BSP PJ_Ma+++
 	if (!s_ctrl) {
-		pr_err("%s:%d failed: %p\n",
+		pr_err("%s:%d failed: %pK\n",
 			__func__, __LINE__, s_ctrl);
 		return -EINVAL;
 	}
@@ -166,7 +169,7 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 
 	if (!power_info || !sensor_i2c_client || !slave_info ||
 		!sensor_name) {
-		pr_err("%s:%d failed: %p %p %p %p\n",
+		pr_err("%s:%d failed: %pK %pK %pK %pK\n",
 			__func__, __LINE__, power_info,
 			sensor_i2c_client, slave_info, sensor_name);
 		return -EINVAL;
@@ -190,18 +193,15 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			break;
 		}
 	}
-
+	
 	if(rc==0){
-		isPowerup=1;
 		if(s_ctrl->id == 0){
 			g_main_ctrl = s_ctrl;
-		}
-		else
-		{
-			g_main_ctrl = NULL;
+			isBackCamPowerup=1;
 		}
 	}
-	pr_err("%s : rc=(%d) X\n", __func__, rc); //ASUS_BSP PJ_Ma+++
+	//pr_err("%s : rc=(%d) X\n", __func__, rc); //ASUS_BSP PJ_Ma+++
+
 	return rc;
 }
 
@@ -233,7 +233,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 	const char *sensor_name;
 
 	if (!s_ctrl) {
-		pr_err("%s:%d failed: %p\n",
+		pr_err("%s:%d failed: %pK\n",
 			__func__, __LINE__, s_ctrl);
 		return -EINVAL;
 	}
@@ -242,7 +242,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 	sensor_name = s_ctrl->sensordata->sensor_name;
 
 	if (!sensor_i2c_client || !slave_info || !sensor_name) {
-		pr_err("%s:%d failed: %p %p %p\n",
+		pr_err("%s:%d failed: %pK %pK %pK\n",
 			__func__, __LINE__, sensor_i2c_client, slave_info,
 			sensor_name);
 		return -EINVAL;
@@ -373,8 +373,8 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 	int32_t rc = 0;
 	int32_t i = 0;
 	mutex_lock(s_ctrl->msm_sensor_mutex);
-	//CDBG("%s:%d %s cfgtype = %d\n", __func__, __LINE__,
-	//	s_ctrl->sensordata->sensor_name, cdata->cfgtype);
+	CDBG("%s:%d %s cfgtype = %d\n", __func__, __LINE__,
+		s_ctrl->sensordata->sensor_name, cdata->cfgtype);
 	switch (cdata->cfgtype) {
 	case CFG_GET_SENSOR_INFO:
 		memcpy(cdata->cfg.sensor_info.sensor_name,
@@ -798,7 +798,6 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		} else {
 			rc = -EFAULT;
 		}
-		clear_proc_pdaf_info();
 		break;
 	case CFG_SET_STOP_STREAM_SETTING: {
 		struct msm_camera_i2c_reg_setting32 stop_setting32;
@@ -883,6 +882,12 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 		break;
 	}
+	//ASUS_BSP PJ_Ma+++
+	case CFG_SET_STOP_STREAM:
+			pr_err("%s : CFG_SET_STOP_STREAM\n", __func__);
+			usleep_range(48000, 49000);
+		break;
+	//ASUS_BSP PJ_Ma---
 
 	default:
 		rc = -EFAULT;
@@ -1365,6 +1370,12 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 		}
 		break;
 	}
+	//ASUS_BSP PJ_Ma+++
+	case CFG_SET_STOP_STREAM:
+			pr_err("%s : CFG_SET_STOP_STREAM\n", __func__);
+			usleep_range(48000, 49000);
+		break;
+	//ASUS_BSP PJ_Ma---
 
 	default:
 		rc = -EFAULT;
@@ -1476,13 +1487,13 @@ int32_t msm_sensor_init_default_params(struct msm_sensor_ctrl_t *s_ctrl)
 
 	/* Validate input parameters */
 	if (!s_ctrl) {
-		pr_err("%s:%d failed: invalid params s_ctrl %p\n", __func__,
+		pr_err("%s:%d failed: invalid params s_ctrl %pK\n", __func__,
 			__LINE__, s_ctrl);
 		return -EINVAL;
 	}
 
 	if (!s_ctrl->sensor_i2c_client) {
-		pr_err("%s:%d failed: invalid params sensor_i2c_client %p\n",
+		pr_err("%s:%d failed: invalid params sensor_i2c_client %pK\n",
 			__func__, __LINE__, s_ctrl->sensor_i2c_client);
 		return -EINVAL;
 	}
@@ -1491,7 +1502,7 @@ int32_t msm_sensor_init_default_params(struct msm_sensor_ctrl_t *s_ctrl)
 	s_ctrl->sensor_i2c_client->cci_client = kzalloc(sizeof(
 		struct msm_camera_cci_client), GFP_KERNEL);
 	if (!s_ctrl->sensor_i2c_client->cci_client) {
-		pr_err("%s:%d failed: no memory cci_client %p\n", __func__,
+		pr_err("%s:%d failed: no memory cci_client %pK\n", __func__,
 			__LINE__, s_ctrl->sensor_i2c_client->cci_client);
 		return -ENOMEM;
 	}
@@ -1546,7 +1557,7 @@ int sensor_read_temp(uint16_t *tmp)
 
 	if(g_main_ctrl != NULL){
 		mutex_lock(g_main_ctrl->msm_sensor_mutex);
-		if(isPowerup==1){
+		if(isBackCamPowerup==1){
 			sensor_i2c_client = g_main_ctrl->sensor_i2c_client;
 			if(sensor_i2c_client != NULL){
 				do_gettimeofday(&tv_now);

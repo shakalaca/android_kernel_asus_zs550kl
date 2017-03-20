@@ -3643,7 +3643,7 @@ static int cm36283_power_set(struct CM36283_info *info, bool on)
 	int rc;
 
 	if (on) {
-/*
+		/*
 		info->vdd = regulator_get(&info->i2c_client->dev, "vdd");
 		if (IS_ERR(info->vdd)) {
 			rc = PTR_ERR(info->vdd);
@@ -3721,17 +3721,22 @@ static int cm36283_power_set(struct CM36283_info *info, bool on)
 
 	return 0;
 
+
 err_vio_ena:
-/*
+	/*
 	regulator_disable(info->vdd);
+
 err_vdd_ena:
 */
 	if (regulator_count_voltages(info->vio) > 0)
 		regulator_set_voltage(info->vio, 0, CM36283_VI2C_MAX_UV);
+
 err_vio_set_vtg:
+
 	regulator_put(info->vio);
+
 err_vio_get:
-/*
+	/*
 	if (regulator_count_voltages(info->vdd) > 0)
 		regulator_set_voltage(info->vdd, 0, CM36283_VDD_MAX_UV);
 err_vdd_set_vtg:

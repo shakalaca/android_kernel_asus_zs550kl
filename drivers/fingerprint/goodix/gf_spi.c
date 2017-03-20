@@ -88,7 +88,7 @@ struct gf_key_map key_map[] =
 
 
 /**************************debug******************************/
-#define GF_DEBUG
+//#define GF_DEBUG
 /*#undef  GF_DEBUG*/
 
 #ifdef  GF_DEBUG
@@ -610,7 +610,6 @@ static int gf_probe(struct platform_device *pdev)
 	int ret;
 	FUNC_ENTRY();
 
-	printk("[Goodix] : gf_probe ENTER !\n");
 	/* Initialize the driver data */
 	INIT_LIST_HEAD(&gf_dev->device_entry);
 #if defined(USE_SPI_BUS)
@@ -699,8 +698,6 @@ static int gf_probe(struct platform_device *pdev)
 			gf_disable_irq(gf_dev);
 		}
 	}
-
-	printk("[Goodix] : gf_probe end !\n");
 
 	return status;
 
@@ -838,7 +835,6 @@ static int __init gf_init(void)
 	 * the driver which manages those device numbers.
 	 */
  	 
-	 printk("[Goodix] : gf_init ENTER !\n");
 #ifdef CONFIG_BBK_FP_ID
     if (get_fp_id() != 2)
     {
@@ -876,7 +872,7 @@ static int __init gf_init(void)
         netlink_init();
 #endif
 	pr_info(" status = 0x%x\n", status);
-	 printk("[Goodix] : gf_init end !\n");
+
 	FUNC_EXIT();
 	return 0;		//status;
 }

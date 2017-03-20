@@ -25,13 +25,12 @@
 #include <linux/seq_file.h>
 
 #undef CDBG
-#define CDBG(fmt, args...) pr_err(fmt, ##args)
+#define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
 DEFINE_MSM_MUTEX(msm_eeprom_mutex);
 #ifdef CONFIG_COMPAT
 static struct v4l2_file_operations msm_eeprom_v4l2_subdev_fops;
 #endif
-
 //panpan++
 #define	STATUS_REAR_PROC_FILE	"driver/rear_eeprom"
 #define	STATUS_FRONT_PROC_FILE	"driver/front_eeprom"
@@ -434,6 +433,8 @@ static int eeprom_parse_memory_map(struct msm_eeprom_ctrl_t *e_ctrl,
 		}
 	}
 	memptr = e_ctrl->cal_data.mapdata;
+	for (i = 0; i < e_ctrl->cal_data.num_data; i++)
+		CDBG("memory_data[%d] = 0x%X\n", i, memptr[i]);
 	return rc;
 
 clean_up:
@@ -714,7 +715,7 @@ static long msm_eeprom_subdev_ioctl(struct v4l2_subdev *sd,
 	struct msm_eeprom_ctrl_t *e_ctrl = v4l2_get_subdevdata(sd);
 	void __user *argp = (void __user *)arg;
 	CDBG("%s E\n", __func__);
-	CDBG("%s:%d a_ctrl %p argp %p\n", __func__, __LINE__, e_ctrl, argp);
+	CDBG("%s:%d a_ctrl %pK argp %pK\n", __func__, __LINE__, e_ctrl, argp);
 	switch (cmd) {
 	case VIDIOC_MSM_SENSOR_GET_SUBDEV_ID:
 		return msm_eeprom_get_subdev_id(e_ctrl, argp);
@@ -813,7 +814,7 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 	}
 	e_ctrl->eeprom_v4l2_subdev_ops = &msm_eeprom_subdev_ops;
 	e_ctrl->eeprom_mutex = &msm_eeprom_mutex;
-	CDBG("%s client = 0x%p\n", __func__, client);
+	CDBG("%s client = 0x%pK\n", __func__, client);
 	e_ctrl->eboard_info = (struct msm_eeprom_board_info *)(id->driver_data);
 	if (!e_ctrl->eboard_info) {
 		pr_err("%s:%d board info NULL\n", __func__, __LINE__);
@@ -1491,7 +1492,8 @@ static int msm_eeprom_config32(struct msm_eeprom_ctrl_t *e_ctrl,
 	struct msm_eeprom_cfg_data32 *cdata =
 		(struct msm_eeprom_cfg_data32 *)argp;
 	int rc = 0;
-	CDBG("vicent %s cfgtype:%d E: \n", __func__, cdata->cfgtype);
+
+	CDBG("%s E\n", __func__);
 	switch (cdata->cfgtype) {
 	case CFG_EEPROM_GET_INFO:
 		if (e_ctrl->userspace_probe == 1) {
@@ -1516,8 +1518,6 @@ static int msm_eeprom_config32(struct msm_eeprom_ctrl_t *e_ctrl,
 		rc = eeprom_config_read_cal_data32(e_ctrl, argp);
 		break;
 	case CFG_EEPROM_INIT:
-		CDBG("vicent cci_master:%d subdev_id:%d ", e_ctrl->cci_master, e_ctrl->subdev_id);
-		CDBG("vicent msm_sd.sd.name:%s", e_ctrl->msm_sd.sd.name);
 		if (e_ctrl->userspace_probe == 0) {
 			pr_err("%s:%d Eeprom already probed at kernel boot",
 				__func__, __LINE__);
@@ -1558,7 +1558,7 @@ static long msm_eeprom_subdev_ioctl32(struct v4l2_subdev *sd,
 	void __user *argp = (void __user *)arg;
 
 	CDBG("%s E\n", __func__);
-	CDBG("%s:%d a_ctrl %p argp %p\n", __func__, __LINE__, e_ctrl, argp);
+	CDBG("%s:%d a_ctrl %pK argp %pK\n", __func__, __LINE__, e_ctrl, argp);
 	switch (cmd) {
 	case VIDIOC_MSM_SENSOR_GET_SUBDEV_ID:
 		return msm_eeprom_get_subdev_id(e_ctrl, argp);
@@ -1769,7 +1769,7 @@ static int msm_eeprom_platform_probe(struct platform_device *pdev)
 	CDBG("%s qcom,eeprom-name %s, rc %d\n", __func__,
 		eb_info->eeprom_name, rc);
 	if (rc < 0) {
-		pr_err("%s failed %d\n", __func__, __LINE__);
+		//pr_err("%s failed %d\n", __func__, __LINE__);
 		e_ctrl->userspace_probe = 1;
 	}
 
@@ -1825,6 +1825,7 @@ static int msm_eeprom_platform_probe(struct platform_device *pdev)
 			CDBG("memory_data[%d] = 0x%X\n", j,
 				e_ctrl->cal_data.mapdata[j]);
 		*/
+
 		e_ctrl->is_supported |= msm_eeprom_match_crc(&e_ctrl->cal_data);
 
 		rc = msm_camera_power_down(power_info,

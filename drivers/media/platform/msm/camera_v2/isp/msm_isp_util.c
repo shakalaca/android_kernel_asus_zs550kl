@@ -1237,8 +1237,8 @@ static int msm_isp_send_hw_cmd(struct vfe_device *vfe_dev,
 	case VFE_READ_DMI_16BIT:
 	case VFE_READ_DMI_32BIT:
 	case VFE_READ_DMI_64BIT: {
-		 if (reg_cfg_cmd->cmd_type == VFE_WRITE_DMI_64BIT ||
-          reg_cfg_cmd->cmd_type == VFE_READ_DMI_64BIT) {
+		if (reg_cfg_cmd->cmd_type == VFE_WRITE_DMI_64BIT ||
+			reg_cfg_cmd->cmd_type == VFE_READ_DMI_64BIT) {
 			if ((reg_cfg_cmd->u.dmi_info.hi_tbl_offset <=
 				reg_cfg_cmd->u.dmi_info.lo_tbl_offset) ||
 				(reg_cfg_cmd->u.dmi_info.hi_tbl_offset -
@@ -2018,18 +2018,6 @@ irqreturn_t msm_isp_process_irq(int irq_num, void *data)
 	msm_isp_process_overflow_irq(vfe_dev,
 		&irq_status0, &irq_status1);
 
- if ((vfe_dev->irq_status0 == irq_status0) && 
- (vfe_dev->irq_status1 == irq_status1) && 
- (vfe_dev->ping_pong_status == ping_pong_status)) { 
- pr_err("%s:VFE%d status0 0x%x status1 0x%x pingpong %d already handled\n", 
- __func__, vfe_dev->pdev->id, irq_status0, irq_status1, ping_pong_status); 
- return IRQ_HANDLED; 
- } 
- 
- vfe_dev->irq_status0 = irq_status0; 
- vfe_dev->irq_status1 = irq_status1; 
- vfe_dev->ping_pong_status = ping_pong_status; 
-
 	vfe_dev->hw_info->vfe_ops.core_ops.
 		get_error_mask(&error_mask0, &error_mask1);
 	error_mask0 &= irq_status0;
@@ -2192,10 +2180,6 @@ int msm_isp_open_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	vfe_dev->isp_raw0_debug = 0;
 	vfe_dev->isp_raw1_debug = 0;
 	vfe_dev->isp_raw2_debug = 0;
-
- vfe_dev->irq_status0 = 0; 
- vfe_dev->irq_status1 = 0; 
- vfe_dev->ping_pong_status = 0; 
 
 	if (vfe_dev->hw_info->vfe_ops.core_ops.init_hw(vfe_dev) < 0) {
 		pr_err("%s: init hardware failed\n", __func__);

@@ -1352,6 +1352,8 @@ void msm_isp_axi_cfg_update(struct vfe_device *vfe_dev,
 		}
 		num_stream++;
 		stream_info = &axi_data->stream_info[i];
+		if (stream_info->state == INACTIVE)
+			continue;
 		if ((stream_info->stream_type == BURST_STREAM &&
 			!stream_info->controllable_output) ||
 			stream_info->state == AVAILABLE)
@@ -2468,7 +2470,7 @@ static int msm_isp_start_axi_stream(struct vfe_device *vfe_dev,
 	struct msm_vfe_axi_shared_data *axi_data = &vfe_dev->axi_data;
 	uint32_t src_mask = 0;
 	unsigned long flags;
-
+         vfe_dev->ignore_irq =0;//ASUS_BSP ZZ++ Fix vfe error
 	if (stream_cfg_cmd->num_streams > MAX_NUM_STREAM)
 		return -EINVAL;
 
@@ -2599,7 +2601,7 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 	uint32_t src_mask = 0, intf, bufq_id = 0, bufq_handle = 0;
 	unsigned long flags;
 	struct msm_isp_timestamp timestamp;
-
+         struct dual_vfe_resource *dual_vfe_res = NULL;//ASUS_BSP ZZ++ Fix vfe error
 	if (stream_cfg_cmd->num_streams > MAX_NUM_STREAM ||
 		stream_cfg_cmd->num_streams == 0)
 		return -EINVAL;
@@ -2622,7 +2624,6 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 		wait_for_complete_for_this_stream = 0;
 
 		stream_info->state = STOP_PENDING;
-
 		if (!halt && !ext_read &&
 			!(stream_info->stream_type == BURST_STREAM &&
 			stream_info->runtime_num_burst_capture == 0))
@@ -2635,7 +2636,6 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 			camif_update,
 			halt,
 			wait_for_complete_for_this_stream);
-
 		intf = SRC_TO_INTF(stream_info->stream_src);
 		if (!wait_for_complete_for_this_stream ||
 			stream_info->state == INACTIVE ||
@@ -2716,9 +2716,18 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 	}
 	if (halt) {
 		/*during stop immediately, stop output then stop input*/
+		//ASUS_BSP ZZ++ Fix vfe error
+		if (vfe_dev->is_split && vfe_dev->pdev->id == ISP_VFE0) {
+			dual_vfe_res = vfe_dev->common_data->dual_vfe_res;
+			vfe_dev->ignore_irq = 1;
+			dual_vfe_res->
+			vfe_dev[!vfe_dev->pdev->id]->ignore_irq = 1;
+		}
+		//ASUS_BSP ZZ++ Fix vfe error
 		vfe_dev->hw_info->vfe_ops.axi_ops.halt(vfe_dev, 1);
 		vfe_dev->hw_info->vfe_ops.core_ops.reset_hw(vfe_dev, 0, 1);
 		vfe_dev->hw_info->vfe_ops.core_ops.init_hw_reg(vfe_dev);
+		vfe_dev->ignore_irq = 0;//ASUS_BSP ZZ++ Fix vfe error
 	}
 
 	msm_isp_update_camif_output_count(vfe_dev, stream_cfg_cmd);
@@ -3490,7 +3499,7 @@ void msm_isp_process_axi_irq(struct vfe_device *vfe_dev,
 		get_comp_mask(irq_status0, irq_status1);
 	wm_mask = vfe_dev->hw_info->vfe_ops.axi_ops.
 		get_wm_mask(irq_status0, irq_status1);
-	if (!(comp_mask || wm_mask))
+	if (!(comp_mask || wm_mask) || vfe_dev->ignore_irq)//ASUS_BSP ZZ++ Fix vfe error
 		return;
 
 	ISP_DBG("%s: status: 0x%x\n", __func__, irq_status0);

@@ -125,7 +125,7 @@ static void mmc_dump_status(struct mmc_card *card)
 		card->ext_csd.device_life_time[1],
 		card->ext_csd.pre_device_eol);
 	pr_info("%s", mmc_status);
-	ASUSEvtlog("%s", mmc_status);
+	//ASUSEvtlog("%s", mmc_status);
 }
 
 static char* asus_get_emmc_status(struct mmc_card *card)
@@ -241,15 +241,6 @@ static const struct mmc_fixup mmc_fixups[] = {
 
 	END_FIXUP
 };
-//<ASUS alex wang20160309>add emmc prv+++++
-static int asus_get_emmc_prv(struct mmc_card *card)
-{
-	int prv;
-	u32 *resp = card->raw_cid;
-	prv = UNSTUFF_BITS(resp, 48, 8);
-	return prv;
-}
-//<ASUS alex wang20160309>add emmc prv-----
 
 /*
  * Given a 128-bit response, decode to our card CSD structure.
@@ -813,7 +804,6 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 	//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status +++
 		storage_primary_health = ext_csd[267];
 	//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status ---
-
 		/* Enhance Strobe is supported since v5.1 which rev should be
 		 * 8 but some eMMC devices can support it with rev 7. So handle
 		 * Enhance Strobe here.
@@ -961,12 +951,6 @@ MMC_DEV_ATTR(raw_rpmb_size_mult, "%#x\n", card->ext_csd.raw_rpmb_size_mult);
 MMC_DEV_ATTR(enhanced_rpmb_supported, "%#x\n",
 		card->ext_csd.enhanced_rpmb_supported);
 MMC_DEV_ATTR(rel_sectors, "%#x\n", card->ext_csd.rel_sectors);
-//<ASUS alex wang20160309>add emmc prv and emmc size+++
-MMC_DEV_ATTR(emmc_prv, "0x%x\n", asus_get_emmc_prv(card));
-MMC_DEV_ATTR(emmc_size, "0x%02x%02x%02x%02x\n",
-	card->ext_csd.raw_sectors[3], card->ext_csd.raw_sectors[2],
-	card->ext_csd.raw_sectors[1], card->ext_csd.raw_sectors[0]);
-//<ASUS alex wang20160309>add emmc prv and emmc size----
 
 //ASUS_BSP +++ jessie_tian "emmc info for ATD"
 MMC_DEV_ATTR(emmc_status, "%s\n", asus_get_emmc_status(card));
@@ -1000,10 +984,6 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_raw_rpmb_size_mult.attr,
 	&dev_attr_enhanced_rpmb_supported.attr,
 	&dev_attr_rel_sectors.attr,
-	//<ASUS alex wang20160309>add emmc prv and emmc size+++
-	&dev_attr_emmc_prv.attr,
-	&dev_attr_emmc_size.attr,
-	//<ASUS alex wang20160309>add emmc prv and emmc size----
 
 	//ASUS_BSP jessie_tian:add emmc info && total_size+++
 	&dev_attr_emmc_status.attr,

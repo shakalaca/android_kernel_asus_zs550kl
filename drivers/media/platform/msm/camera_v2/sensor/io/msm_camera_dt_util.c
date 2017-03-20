@@ -25,9 +25,6 @@
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
-int gpio_ref_cnt[SENSOR_GPIO_MAX];  //ASUS_BSP Deka "fix cts multi-release fail"
-int vref_ref_cnt[CAM_VREG_MAX];  //ASUS_BSP Deka "fix cts multi-release fail"
-
 int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 	int num_vreg, struct msm_sensor_power_setting *power_setting,
 	uint16_t power_setting_size)
@@ -37,7 +34,7 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 
 	/* Validate input parameters */
 	if (!cam_vreg || !power_setting) {
-		pr_err("%s:%d failed: cam_vreg %p power_setting %p", __func__,
+		pr_err("%s:%d failed: cam_vreg %pK power_setting %pK", __func__,
 			__LINE__,  cam_vreg, power_setting);
 		return -EINVAL;
 	}
@@ -70,6 +67,8 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 					break;
 				}
 			}
+			if (j == num_vreg)
+				power_setting[i].seq_val = INVALID_VREG;
 			break;
 
 		case CAM_VIO:
@@ -89,6 +88,8 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 					break;
 				}
 			}
+			if (j == num_vreg)
+				power_setting[i].seq_val = INVALID_VREG;
 			break;
 
 		case CAM_VANA:
@@ -108,6 +109,8 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 					break;
 				}
 			}
+			if (j == num_vreg)
+				power_setting[i].seq_val = INVALID_VREG;
 			break;
 
 		case CAM_VAF:
@@ -127,6 +130,8 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 					break;
 				}
 			}
+			if (j == num_vreg)
+				power_setting[i].seq_val = INVALID_VREG;
 			break;
 
 		case CAM_V_CUSTOM1:
@@ -147,7 +152,9 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 					break;
 				}
 			}
-
+			if (j == num_vreg)
+				power_setting[i].seq_val = INVALID_VREG;
+			break;
 		case CAM_V_CUSTOM2:
 			for (j = 0; j < num_vreg; j++) {
 				if (!strcmp(cam_vreg[j].reg_name,
@@ -166,6 +173,8 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 					break;
 				}
 			}
+			if (j == num_vreg)
+				power_setting[i].seq_val = INVALID_VREG;
 			break;
 
 		default:
@@ -742,19 +751,10 @@ int msm_camera_init_gpio_pin_tbl(struct device_node *of_node,
 	struct msm_camera_gpio_conf *gconf, uint16_t *gpio_array,
 	uint16_t gpio_array_size)
 {
-	int rc = 0, val = 0, index = 0;
+	int rc = 0, val = 0;
 
 	gconf->gpio_num_info = kzalloc(sizeof(struct msm_camera_gpio_num_info),
 		GFP_KERNEL);
-    //ASUS_BSP +++ Deka "fix cts multi-release fail"
-        for(index = 0; index < SENSOR_GPIO_MAX ; index++){
-            gpio_ref_cnt[index] = 0;
-        }
-        for(index = 0; index < CAM_VREG_MAX ; index++){
-            vref_ref_cnt[index] = 0;
-        }
-    //ASUS_BSP --- Deka "fix cts multi-release fail"
-        
 	if (!gconf->gpio_num_info) {
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		rc = -ENOMEM;
@@ -1031,7 +1031,7 @@ int msm_camera_get_dt_vreg_data(struct device_node *of_node,
 	CDBG("%s qcom,cam-vreg-name count %d\n", __func__, count);
 
 	if (!count || (count == -EINVAL)) {
-		pr_err("%s:%d number of entries is 0 or not present in dts\n",
+		CDBG("%s:%d number of entries is 0 or not present in dts\n",
 			__func__, __LINE__);
 		*num_vreg = 0;
 		return 0;
@@ -1223,8 +1223,7 @@ int msm_cam_sensor_handle_reg_gpio(int seq_val,
 
 	if (!gconf) {
 		pr_err("ERR:%s: Input Parameters are not proper\n", __func__);
-		//return -EINVAL;
-		return 0;//bsp charles++ for no gpio setting in dtsi
+		return -EINVAL;
 	}
 	CDBG("%s: %d Seq val: %d, config: %d", __func__, __LINE__,
 		seq_val, val);
@@ -1340,14 +1339,12 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 
 	CDBG("%s:%d\n", __func__, __LINE__);
 	if (!ctrl || !sensor_i2c_client) {
-		pr_err("failed ctrl %p sensor_i2c_client %p\n", ctrl,
+		pr_err("failed ctrl %pK sensor_i2c_client %pK\n", ctrl,
 			sensor_i2c_client);
 		return -EINVAL;
 	}
-	pr_err("gpio_conf=%p\n",ctrl->gpio_conf);
 	if (ctrl->gpio_conf->cam_gpiomux_conf_tbl != NULL)
 		pr_err("%s:%d mux install\n", __func__, __LINE__);
-	pr_err("cam_gpiomux_conf_tbl=%p\n",ctrl->gpio_conf->cam_gpiomux_conf_tbl);
 
 	ret = msm_camera_pinctrl_init(&(ctrl->pinctrl_info), ctrl->dev);
 	if (ret < 0) {
@@ -1357,15 +1354,11 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 	} else {
 		ctrl->cam_pinctrl_status = 1;
 	}
-	pr_err("cam_gpio_req_tbl_size=%d\n",ctrl->gpio_conf->cam_gpio_req_tbl_size);
-	if(ctrl->gpio_conf->cam_gpio_req_tbl_size>0)
-	{
-		rc = msm_camera_request_gpio_table(
-			ctrl->gpio_conf->cam_gpio_req_tbl,
-			ctrl->gpio_conf->cam_gpio_req_tbl_size, 1);
-	}
-	else
-		no_gpio = true;
+	rc = msm_camera_request_gpio_table(
+		ctrl->gpio_conf->cam_gpio_req_tbl,
+		ctrl->gpio_conf->cam_gpio_req_tbl_size, 1);
+	if (rc < 0)
+		no_gpio = rc;
 	if (ctrl->cam_pinctrl_status) {
 		ret = pinctrl_select_state(ctrl->pinctrl_info.pinctrl,
 			ctrl->pinctrl_info.gpio_state_active);
@@ -1373,8 +1366,6 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 			pr_err("%s:%d cannot set pin to active state",
 				__func__, __LINE__);
 	}
-	CDBG("%s power_setting_size=%d,power_setting=%p\n"
-		, __func__, ctrl->power_setting_size,ctrl->power_setting);
 	for (index = 0; index < ctrl->power_setting_size; index++) {
 		CDBG("%s index %d\n", __func__, index);
 		power_setting = &ctrl->power_setting[index];
@@ -1401,7 +1392,7 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 		case SENSOR_GPIO:
 			if (no_gpio) {
 				pr_err("%s: request gpio failed\n", __func__);
-				continue;
+				return no_gpio;
 			}
 			if (power_setting->seq_val >= SENSOR_GPIO_MAX ||
 				!ctrl->gpio_conf->gpio_num_info) {
@@ -1420,14 +1411,11 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 				ctrl->gpio_conf->gpio_num_info->gpio_num
 				[power_setting->seq_val],
 				(int) power_setting->config_val);
-                        //ASUS_BSP +++ Deka "fix cts multi-release fail"
-                        if((int)power_setting->config_val == GPIO_OUT_HIGH){
-                            gpio_ref_cnt[power_setting->seq_val] ++;
-                            CDBG("Deka power up gpio %d ref_cnt = %d",power_setting->seq_val, gpio_ref_cnt[power_setting->seq_val]);
-                            }
-                        //ASUS_BSP --- Deka "fix cts multi-release fail"
 			break;
 		case SENSOR_VREG:
+			if (power_setting->seq_val == INVALID_VREG)
+				break;
+
 			if (power_setting->seq_val >= CAM_VREG_MAX) {
 				pr_err("%s vreg index %d >= max %d\n", __func__,
 					power_setting->seq_val,
@@ -1454,10 +1442,6 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 					__func__);
 				goto power_up_failed;
 			}
-                         //ASUS_BSP +++ Deka "fix cts multi-release fail"
-                            vref_ref_cnt[power_setting->seq_val] ++;
-                            CDBG("Deka power up vref %d ref_cnt = %d",power_setting->seq_val, vref_ref_cnt[power_setting->seq_val]);
-                        //ASUS_BSP --- Deka "fix cts multi-release fail"
 			break;
 		case SENSOR_I2C_MUX:
 			if (ctrl->i2c_conf && ctrl->i2c_conf->use_i2c_mux)
@@ -1494,7 +1478,6 @@ power_up_failed:
 		CDBG("%s type %d\n", __func__, power_setting->seq_type);
 		switch (power_setting->seq_type) {
 		case SENSOR_GPIO:
-			if (no_gpio) continue;
 			if (!ctrl->gpio_conf->gpio_num_info)
 				continue;
 			if (!ctrl->gpio_conf->gpio_num_info->valid
@@ -1503,12 +1486,6 @@ power_up_failed:
 			gpio_set_value_cansleep(
 				ctrl->gpio_conf->gpio_num_info->gpio_num
 				[power_setting->seq_val], GPIOF_OUT_INIT_LOW);
-                    //ASUS_BSP +++ Deka "fix cts multi-release fail"
-                    if(gpio_ref_cnt[power_setting->seq_val] > 0){
-                        gpio_ref_cnt[power_setting->seq_val] --;
-                        }
-                    CDBG("Deka power up fail gpio %d release ref_cnt = %d",power_setting->seq_val, gpio_ref_cnt[power_setting->seq_val]);
-                    //ASUS_BSP --- Deka "fix cts multi-release fail"
 			break;
 		case SENSOR_VREG:
 			if (power_setting->seq_val < ctrl->num_vreg)
@@ -1525,12 +1502,6 @@ power_up_failed:
 
 			msm_cam_sensor_handle_reg_gpio(power_setting->seq_val,
 				ctrl->gpio_conf, GPIOF_OUT_INIT_LOW);
-                    //ASUS_BSP +++ Deka "fix cts multi-release fail"
-                    if(vref_ref_cnt[power_setting->seq_val] > 0){
-                        vref_ref_cnt[power_setting->seq_val] --;
-                        }
-                    CDBG("Deka power up fail vref %d release ref_cnt = %d",power_setting->seq_val, vref_ref_cnt[power_setting->seq_val]);
-                    //ASUS_BSP --- Deka "fix cts multi-release fail"
 			break;
 		case SENSOR_I2C_MUX:
 			if (ctrl->i2c_conf && ctrl->i2c_conf->use_i2c_mux)
@@ -1590,17 +1561,17 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 	int index = 0, ret = 0;
 	struct msm_sensor_power_setting *pd = NULL;
 	struct msm_sensor_power_setting *ps;
-	int no_gpio=0;
+
 	CDBG("%s:%d\n", __func__, __LINE__);
 	if (!ctrl || !sensor_i2c_client) {
-		pr_err("failed ctrl %p sensor_i2c_client %p\n", ctrl,
+		pr_err("failed ctrl %pK sensor_i2c_client %pK\n", ctrl,
 			sensor_i2c_client);
 		return -EINVAL;
 	}
 	if (device_type == MSM_CAMERA_PLATFORM_DEVICE)
 		sensor_i2c_client->i2c_func_tbl->i2c_util(
 			sensor_i2c_client, MSM_CCI_RELEASE);
-	if(ctrl->gpio_conf->cam_gpio_req_tbl_size==0)no_gpio=true;
+
 	for (index = 0; index < ctrl->power_down_setting_size; index++) {
 		CDBG("%s index %d\n", __func__, index);
 		pd = &ctrl->power_down_setting[index];
@@ -1613,7 +1584,7 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 				ctrl->clk_info_size, false);
 				break;
 		case SENSOR_GPIO:
-			if (no_gpio  ||  pd->seq_val >= SENSOR_GPIO_MAX ||
+			if (pd->seq_val >= SENSOR_GPIO_MAX ||
 				!ctrl->gpio_conf->gpio_num_info) {
 				pr_err("%s gpio index %d >= max %d\n", __func__,
 					pd->seq_val,
@@ -1623,21 +1594,10 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 			if (!ctrl->gpio_conf->gpio_num_info->valid
 				[pd->seq_val])
 				continue;
-                //ASUS_BSP +++ Deka "fix cts multi-release fail"
-                    if((int)pd->config_val == GPIO_OUT_LOW){
-                        if(gpio_ref_cnt[pd->seq_val] > 1){
-                            gpio_ref_cnt[pd->seq_val] --;
-                            CDBG("Deka power down gpio %d ref_cnt = %d",pd->seq_val, gpio_ref_cnt[pd->seq_val]);
-                        }else if(gpio_ref_cnt[pd->seq_val] == 1){
-    			gpio_set_value_cansleep(
-    				ctrl->gpio_conf->gpio_num_info->gpio_num
-    				[pd->seq_val],
-    				(int) pd->config_val);
-                         gpio_ref_cnt[pd->seq_val] --;
-                         CDBG("Deka power down release gpio %d ref_cnt = %d",pd->seq_val, gpio_ref_cnt[pd->seq_val]);
-                        }
-                    }
-                    //ASUS_BSP --- Deka "fix cts multi-release fail"
+			gpio_set_value_cansleep(
+				ctrl->gpio_conf->gpio_num_info->gpio_num
+				[pd->seq_val],
+				(int) pd->config_val);
 			break;
 		case SENSOR_VREG:
 			if (pd->seq_val == INVALID_VREG)
@@ -1667,20 +1627,11 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 			} else
 				pr_err("%s error in power up/down seq data\n",
 								__func__);
-                    //ASUS_BSP +++ Deka "fix cts multi-release fail"
-                    if(vref_ref_cnt[pd->seq_val] > 1){
-                            vref_ref_cnt[pd->seq_val] --;
-                            CDBG("Deka power down vref %d ref_cnt = %d",pd->seq_val, vref_ref_cnt[pd->seq_val]);
-                        }else if(vref_ref_cnt[pd->seq_val] == 1){
 			ret = msm_cam_sensor_handle_reg_gpio(pd->seq_val,
 				ctrl->gpio_conf, GPIOF_OUT_INIT_LOW);
 			if (ret < 0)
 				pr_err("ERR:%s Error while disabling VREG GPIO\n",
 					__func__);
-                     vref_ref_cnt[pd->seq_val] --;
-                     CDBG("Deka power down release vref %d ref_cnt = %d",pd->seq_val, vref_ref_cnt[pd->seq_val]);
-                     }
-                     //ASUS_BSP -- Deka "fix cts multi-release fail"
 			break;
 		case SENSOR_I2C_MUX:
 			if (ctrl->i2c_conf && ctrl->i2c_conf->use_i2c_mux)

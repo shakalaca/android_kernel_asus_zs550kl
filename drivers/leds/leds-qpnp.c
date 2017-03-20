@@ -1908,13 +1908,13 @@ static void qpnp_led_work(struct work_struct *work)
 					struct qpnp_led_data, work);
 	if(led->id==QPNP_ID_LED_MPP)
 		mutex_lock(&green_red_lock);
-	printk("[LED] %s lock\n", led->cdev.name);
+	pr_debug("[LED] %s lock\n", led->cdev.name);
 	
 	__qpnp_led_work(led, led->cdev.brightness);
 
 	if(led->id==QPNP_ID_LED_MPP)
 		mutex_unlock(&green_red_lock);
-	printk("[LED] %s unlock\n", led->cdev.name);
+	pr_debug("[LED] %s unlock\n", led->cdev.name);
 
 	return;
 }
@@ -3892,7 +3892,7 @@ static int qpnp_leds_probe(struct spmi_device *spmi)
 	const char *led_label;
 	bool regulator_probe = false;
 	
-	printk("[LED] qpnp_leds_probe\n");	
+	pr_debug("[LED] qpnp_leds_probe\n");	
 
 	node = spmi->dev.of_node;
 	if (node == NULL)
@@ -3939,11 +3939,11 @@ static int qpnp_leds_probe(struct spmi_device *spmi)
 				"Failure reading led name, rc = %d\n", rc);
 			goto fail_id_check;
 		}
-		printk("[LED] linux,name : %s\n", led->cdev.name);
+		pr_debug("[LED] linux,name : %s\n", led->cdev.name);
 
 		if(!strcmp(led->cdev.name,"button-backlight"))
 		{
-			printk("[LED] : Copy Led structure\n");
+			pr_debug("[LED] : Copy Led structure\n");
 			copy_led = led;
 		}
 		

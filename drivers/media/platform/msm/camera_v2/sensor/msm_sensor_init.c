@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,7 +20,7 @@
 
 /* Logging macro */
 #undef CDBG
-#define CDBG(fmt, args...) pr_err(fmt, ##args)
+#define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
 static struct msm_sensor_init_t *s_init;
 static struct v4l2_file_operations msm_sensor_init_v4l2_subdev_fops;
@@ -64,7 +64,7 @@ static int32_t msm_sensor_driver_cmd(struct msm_sensor_init_t *s_init,
 
 	/* Validate input parameters */
 	if (!s_init || !cfg) {
-		pr_err("failed: s_init %p cfg %p", s_init, cfg);
+		pr_err("failed: s_init %pK cfg %pK", s_init, cfg);
 		return -EINVAL;
 	}
 
@@ -106,7 +106,7 @@ static long msm_sensor_init_subdev_ioctl(struct v4l2_subdev *sd,
 
 	/* Validate input parameters */
 	if (!s_init) {
-		pr_err("failed: s_init %p", s_init);
+		pr_err("failed: s_init %pK", s_init);
 		return -EINVAL;
 	}
 
@@ -172,7 +172,7 @@ static int __init msm_sensor_init_module(void)
 		return -ENOMEM;
 	}
 
-	CDBG("MSM_SENSOR_INIT_MODULE %p", NULL);
+	CDBG("MSM_SENSOR_INIT_MODULE %pK", NULL);
 
 	/* Initialize mutex */
 	mutex_init(&s_init->imutex);

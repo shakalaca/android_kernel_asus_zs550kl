@@ -25,6 +25,7 @@
 #include <linux/clk.h>
 #include "msm_camera_dt_util.h"
 #include "msm_camera_io_util.h"
+#define MAX_OIS_REG_SETTINGS 800
 /*ASUS_BSP --- bill_chen "Implement ois"*/
 
 DEFINE_MSM_MUTEX(msm_ois_mutex);
@@ -305,6 +306,7 @@ static int32_t msm_ois_write_settings(struct msm_ois_ctrl_t *o_ctrl,
 							}
 							reg_setting->reg_data_size = 1;
 						}
+                                            usleep_range(1,2);  //ASUS_BSP Deka ''fix startpreiew and OIS init compete i2c resource issue"
 						if(settings[i].reg_data == 0x0001 || settings[i].reg_data == 0x0002) {
 							rc = o_ctrl->i2c_client.i2c_func_tbl->
 								i2c_write_seq(&o_ctrl->i2c_client,
@@ -404,10 +406,10 @@ static int32_t msm_ois_write_settings(struct msm_ois_ctrl_t *o_ctrl,
 			case MSM_CAMERA_I2C_READ_FW_DATA:
 				//pr_err("%s: MSM_CAMERA_I2C_READ_FW_DATA +++\n", __func__);
 				if(settings[i].reg_data == 0x0001) {
-					PROGRAM_DOWNLOAD_OIS_FW_LENGTH = Sysfs_read_byte_seq("/system/etc/firmware/ZD552KL/ois_fw/OIS_programFW.bin", PROGRAM_DOWNLOAD_OIS_FW, ARRAY_SIZE(PROGRAM_DOWNLOAD_OIS_FW));
+					PROGRAM_DOWNLOAD_OIS_FW_LENGTH = Sysfs_read_byte_seq("/system/etc/firmware/ZS550KL/ois_fw/OIS_programFW.bin", PROGRAM_DOWNLOAD_OIS_FW, ARRAY_SIZE(PROGRAM_DOWNLOAD_OIS_FW));
 					pr_err("%s: PROGRAM_DOWNLOAD_OIS_FW_LENGTH = 0x%d\n", __func__, PROGRAM_DOWNLOAD_OIS_FW_LENGTH);
 				} else if(settings[i].reg_data == 0x0002) {
-					COEFFICIENT_DOWNLOAD_OIS_FW_LENGTH = Sysfs_read_byte_seq("/system/etc/firmware/ZD552KL/ois_fw/OIS_coefficientFW.mem", COEFFICIENT_DOWNLOAD_OIS_FW, ARRAY_SIZE(COEFFICIENT_DOWNLOAD_OIS_FW));
+					COEFFICIENT_DOWNLOAD_OIS_FW_LENGTH = Sysfs_read_byte_seq("/system/etc/firmware/ZS550KL/ois_fw/OIS_coefficientFW.mem", COEFFICIENT_DOWNLOAD_OIS_FW, ARRAY_SIZE(COEFFICIENT_DOWNLOAD_OIS_FW));
 					pr_err("%s: COEFFICIENT_DOWNLOAD_OIS_FW_LENGTH = 0x%d\n", __func__, COEFFICIENT_DOWNLOAD_OIS_FW_LENGTH);
 				}
 				//pr_err("%s: MSM_CAMERA_I2C_READ_FW_DATA ---\n", __func__);
@@ -1199,7 +1201,6 @@ static int32_t msm_ois_platform_probe(struct platform_device *pdev)
 	uint32_t id_info[3];
 	struct msm_camera_power_ctrl_t *power_info = NULL;
 	struct msm_ois_board_info *ob_info = NULL;
-	pr_err("%s: E", __func__);  
 	/*ASUS_BSP --- bill_chen "Implement ois"*/
 	CDBG("Enter\n");
 
@@ -1334,7 +1335,7 @@ static int32_t msm_ois_platform_probe(struct platform_device *pdev)
 		&power_info->clk_ptr,
 		&power_info->clk_info_size);
 	if (rc < 0) {
-		pr_err("failed: msm_camera_get_clk_info rc %d", rc);
+		//pr_err("failed: msm_camera_get_clk_info rc %d", rc);
 		//goto board_free;
 	}
 
@@ -1392,7 +1393,7 @@ static int32_t msm_ois_platform_probe(struct platform_device *pdev)
 		}
 	}
 
-    pr_err("%s: rc = %d X", __func__, rc);
+    //pr_err("%s: rc = %d X", __func__, rc);
  	return rc;
 }
 
@@ -1578,7 +1579,7 @@ static int msm_ois_get_dt_data(struct msm_ois_ctrl_t *o_ctrl)
 
 	rc = msm_camera_get_dt_vreg_data(of_node, &power_info->cam_vreg,
 					     &power_info->num_vreg);
-	pr_err("%s power_info->num_vreg = %d\n", __func__, power_info->num_vreg);
+	//pr_err("%s power_info->num_vreg = %d\n", __func__, power_info->num_vreg);
 	if (rc < 0) {
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		return rc;
@@ -1601,7 +1602,7 @@ static int msm_ois_get_dt_data(struct msm_ois_ctrl_t *o_ctrl)
 
 	gconf = power_info->gpio_conf;
 	gpio_array_size = of_gpio_count(of_node);
-	pr_err("%s gpio count %d\n", __func__, gpio_array_size);
+	//pr_err("%s gpio count %d\n", __func__, gpio_array_size);
 
 	if (gpio_array_size > 0) {
 		gpio_array = kzalloc(sizeof(uint16_t) * gpio_array_size,

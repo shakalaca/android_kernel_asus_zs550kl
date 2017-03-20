@@ -516,15 +516,24 @@ static void bulk_out_complete(struct usb_ep *ep, struct usb_request *req)
 	struct fsg_common	*common = ep->driver_data;
 	struct fsg_buffhd	*bh = req->context;
 
-	dump_msg(common, "bulk-out", req->buf, req->actual);
 	if (req->status || req->actual != bh->bulk_out_intended_length)
-		DBG(common, "%s --> %d, %u/%u\n", __func__,
+		pr_debug("%s --> %d, %u/%u\n", __func__,
 		    req->status, req->actual, bh->bulk_out_intended_length);
 	if (req->status == -ECONNRESET)		/* Request was cancelled */
 		usb_ep_fifo_flush(ep);
 
 	/* Hold the lock while we update the request and buffer states */
 	smp_wmb();
+	/*
+	 * Disconnect and completion might race each other and driver data
+	 * is set to NULL during ep disable. So, add a check if that is case.
+	 */
+	if (!common) {
+		bh->outreq_busy = 0;
+		return;
+	}
+
+	dump_msg(common, "bulk-out", req->buf, req->actual);
 	spin_lock(&common->lock);
 	bh->outreq_busy = 0;
 	bh->state = BUF_STATE_FULL;
@@ -3243,10 +3252,10 @@ void fsg_common_set_inquiry_string(struct fsg_common *common, const char *vn,
 	/* Prepare inquiryString */
 	i = get_default_bcdDevice();
 	snprintf(common->inquiry_string, sizeof(common->inquiry_string),
-		 "%-8s%-16s%04x", vn ?: "ASUS",
+		 "%-8s%-16s%04x", vn ?: "Linux",
 		 /* Assume product name dependent on the first LUN */
 		 pn ?: ((*common->luns)->cdrom
-		     ? "Device CD-ROM"
+		     ? "File-CD Gadget"
 		     : "File-Stor Gadget"),
 		 i);
 }
@@ -3314,7 +3323,7 @@ int fsg_sysfs_update(struct fsg_common *common, struct device *dev, bool create)
 	if (create) {
 		for (i = 0; i < common->nluns; i++) {
 			if (i == 0)
-				snprintf(common->name[i], 8, "rom");
+				snprintf(common->name[i], 8, "lun");
 			else
 				snprintf(common->name[i], 8, "lun%d", i-1);
 			ret = sysfs_create_link(&dev->kobj,
@@ -3645,7 +3654,6 @@ static void fsg_lun_drop(struct config_group *group, struct config_item *item)
 		struct config_item *gadget;
 
 		gadget = group->cg_item.ci_parent->ci_parent;
-		unregister_gadget_item(gadget);
 	}
 
 	fsg_common_remove_lun(lun_opts->lun, fsg_opts->common->sysfs);

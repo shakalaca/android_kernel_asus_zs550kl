@@ -156,14 +156,14 @@ int vote(struct votable *votable, int client_id, bool state, int val)
 
 	if (votable->votes[client_id].state == state &&
 				votable->votes[client_id].value == val) {
-		pr_info("%s: votes unchanged; skipping\n", votable->name);
+		pr_debug("%s: votes unchanged; skipping\n", votable->name);
 		goto out;
 	}
 
 	votable->votes[client_id].state = state;
 	votable->votes[client_id].value = val;
 
-	pr_info("%s: %d voting for %d - %s\n",
+	pr_debug("%s: %d voting for %d - %s\n",
 			votable->name,
 			client_id, val, state ? "on" : "off");
 	switch (votable->type) {
@@ -191,7 +191,7 @@ int vote(struct votable *votable, int client_id, bool state, int val)
 	 * known effective_result and effective_client_id
 	 */
 	if (effective_id < 0) {
-		pr_info("%s: no votes; skipping callback\n", votable->name);
+		pr_debug("%s: no votes; skipping callback\n", votable->name);
 		goto out;
 	}
 
@@ -200,7 +200,7 @@ int vote(struct votable *votable, int client_id, bool state, int val)
 	if (effective_result != votable->effective_result) {
 		votable->effective_client_id = effective_id;
 		votable->effective_result = effective_result;
-		pr_info("%s: effective vote is now %d voted by %d\n",
+		pr_debug("%s: effective vote is now %d voted by %d\n",
 				votable->name, effective_result, effective_id);
 		rc = votable->callback(votable->dev, effective_result,
 					effective_id, val, client_id);

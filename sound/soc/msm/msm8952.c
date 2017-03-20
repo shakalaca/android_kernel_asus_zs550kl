@@ -87,7 +87,6 @@ static atomic_t quat_mi2s_clk_ref;
 static atomic_t quin_mi2s_clk_ref;
 static atomic_t auxpcm_mi2s_clk_ref;
 
-
 //Enable basic function for external-tfa-speaker;asus_bsp++
 #include <linux/proc_fs.h>
 #ifndef QUIN_STATUS_PROC_FILE
@@ -96,7 +95,6 @@ static struct proc_dir_entry *quin_status_proc_file;
 static int quin_mi2s_status = 0; //0 means not running
 #endif
 //Enable basic function for external-tfa-speaker;asus_bsp--
-
 
 static int msm8952_enable_dig_cdc_clk(struct snd_soc_codec *codec, int enable,
 					bool dapm);
@@ -186,7 +184,7 @@ static struct afe_clk_set wsa_ana_clk = {
 	0,
 };
 
-static char const *rx_bit_format_text[] = {"S16_LE", "S24_LE"};
+static char const *rx_bit_format_text[] = {"S16_LE", "S24_LE", "S24_3LE"};
 static const char *const mi2s_ch_text[] = {"One", "Two"};
 static const char *const loopback_mclk_text[] = {"DISABLE", "ENABLE"};
 static const char *const btsco_rate_text[] = {"BTSCO_RATE_8KHZ",
@@ -387,7 +385,7 @@ static int msm_auxpcm_be_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
-static int msm_pri_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+static int msm_mi2s_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				struct snd_pcm_hw_params *params)
 {
 	struct snd_interval *rate = hw_param_interval(params,
@@ -557,22 +555,34 @@ static int msm8952_get_port_id(int be_id)
 	}
 }
 
+static bool is_mi2s_rx_port(int port_id)
+{
+	bool ret = false;
+
+	switch (port_id) {
+	case AFE_PORT_ID_PRIMARY_MI2S_RX:
+	case AFE_PORT_ID_SECONDARY_MI2S_RX:
+	case AFE_PORT_ID_QUATERNARY_MI2S_RX:
+	case AFE_PORT_ID_QUINARY_MI2S_RX:
+		ret = true;
+		break;
+	default:
+		break;
+	}
+	return ret;
+}
+
 static uint32_t get_mi2s_rx_clk_val(int port_id)
 {
-	uint32_t clk_val;
+	uint32_t clk_val = 0;
 
 	/*
-	 *  Derive clock value based on configuration of Primary MI2S rx port,
-	 *  as this port supports dynamic configuration for hifi audio
+	 *  Derive clock value based on sample rate, bits per sample and
+	 *  channel count is used as 2
 	 */
-	if (port_id == AFE_PORT_ID_PRIMARY_MI2S_RX) {
+	if (is_mi2s_rx_port(port_id))
 		clk_val = (mi2s_rx_sample_rate * mi2s_rx_bits_per_sample * 2);
-	} else {
-		if (mi2s_rx_bit_format == SNDRV_PCM_FORMAT_S24_LE)
-			clk_val =  Q6AFE_LPASS_IBIT_CLK_3_P072_MHZ;
-		else
-			clk_val = Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
-	}
+
 	pr_debug("%s: MI2S Rx bit clock value: 0x%0x\n", __func__, clk_val);
 	return clk_val;
 }
@@ -761,6 +771,10 @@ static int mi2s_rx_bit_format_get(struct snd_kcontrol *kcontrol,
 {
 
 	switch (mi2s_rx_bit_format) {
+	case SNDRV_PCM_FORMAT_S24_3LE:
+		ucontrol->value.integer.value[0] = 2;
+		break;
+
 	case SNDRV_PCM_FORMAT_S24_LE:
 		ucontrol->value.integer.value[0] = 1;
 		break;
@@ -782,6 +796,10 @@ static int mi2s_rx_bit_format_put(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
 	switch (ucontrol->value.integer.value[0]) {
+	case 2:
+		mi2s_rx_bit_format = SNDRV_PCM_FORMAT_S24_3LE;
+		mi2s_rx_bits_per_sample = 32;
+		break;
 	case 1:
 		mi2s_rx_bit_format = SNDRV_PCM_FORMAT_S24_LE;
 		mi2s_rx_bits_per_sample = 32;
@@ -1170,7 +1188,7 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int ret = 0, val = 0;
 
-	pr_err("%s------enter: substream = %s  stream = %d\n", __func__,
+	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
 		 substream->name, substream->stream);
 
 	/*
@@ -1221,8 +1239,6 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	if (ret < 0)
 		pr_err("%s: set fmt cpu dai failed; ret=%d\n", __func__, ret);
 
-    pr_err("%s------leave: substream = %s  stream = %d\n", __func__,
-		 substream->name, substream->stream);
 	return ret;
 }
 static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
@@ -1232,7 +1248,7 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 	struct snd_soc_card *card = rtd->card;
 	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 
-	pr_err("%s()----------enter: substream = %s  stream = %d\n", __func__,
+	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
 			substream->name, substream->stream);
 
 	ret = msm_mi2s_sclk_ctl(substream, false);
@@ -1252,8 +1268,6 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		pr_debug("%s: decrementing mclk_res_ref %d\n",
 				__func__, atomic_read(&pdata->mclk_rsc_ref));
 	}
-	pr_err("%s()----------leave: substream = %s  stream = %d\n", __func__,
-			substream->name, substream->stream);
 }
 
 static int msm_prim_auxpcm_startup(struct snd_pcm_substream *substream)
@@ -1462,7 +1476,7 @@ static int msm_quin_mi2s_snd_startup(struct snd_pcm_substream *substream)
 			snd_soc_card_get_drvdata(card);
 	int ret = 0, val = 0;
 
-	pr_err("%s(): substream = %s  stream = %d\n", __func__,
+	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
 				substream->name, substream->stream);
 	if (pdata->vaddr_gpio_mux_quin_ctl) {
 		val = ioread32(pdata->vaddr_gpio_mux_quin_ctl);
@@ -1486,20 +1500,23 @@ static int msm_quin_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		if (ret < 0)
 			pr_err("%s: set fmt cpu dai failed\n", __func__);
 	}
+
 	//Set the quin status for checking the i2s bit clock is sending or not;asus_bsp++
 	quin_mi2s_status = 1;
 	pr_err("%s: quin_mi2s_status = 1\n", __func__);
 	//Set the quin status for checking the i2s bit clock is sending or not;asus_bsp--
-	
+
 	return ret;
 err:
 	ret = msm_mi2s_sclk_ctl(substream, false);
 	if (ret < 0)
 		pr_err("failed to disable sclk\n");
+
 	//Set the quin status for checking the i2s bit clock is sending or not;asus_bsp++
-	pr_err("%s: quin_mi2s_status = 0\n", __func__);
+	pr_debug("%s: quin_mi2s_status = 0\n", __func__);
 	quin_mi2s_status = 0;
 	//Set the quin status for checking the i2s bit clock is sending or not;asus_bsp--
+
 	return ret;
 }
 
@@ -1521,10 +1538,11 @@ static void msm_quin_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		return;
 	}
 	else { //Set the quin status for checking the i2s bit clock is sending or not;asus_bsp++
-		pr_err("%s: quin_mi2s_status = 0\n", __func__);
+		pr_err("%s: disable sclk successfully and quin_mi2s_status = 0\n", __func__);
 		quin_mi2s_status = 0;
 	}
 	//Set the quin status for checking the i2s bit clock is sending or not;asus_bsp--
+
 }
 
 static void *def_msm8952_wcd_mbhc_cal(void)
@@ -1606,6 +1624,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "DMIC1");
 	snd_soc_dapm_ignore_suspend(dapm, "DMIC2");
 	snd_soc_dapm_ignore_suspend(dapm, "WSA_SPK OUT");
+	snd_soc_dapm_ignore_suspend(dapm, "LINEOUT");
 
 	snd_soc_dapm_sync(dapm);
 
@@ -1751,7 +1770,6 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.platform_name	= "msm-pcm-hostless",
 		.dynamic = 1,
 		.dpcm_playback = 1,
-		.dpcm_capture = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -1979,7 +1997,6 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.cpu_dai_name = "LSM1",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
-		.dpcm_playback = 1,
 		.dpcm_capture = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST },
@@ -2077,7 +2094,6 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.platform_name = "msm-pcm-hostless",
 		.dynamic = 1,
 		.dpcm_playback = 1,
-		.dpcm_capture = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2266,6 +2282,24 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.ignore_pmdown_time = 1,
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA8,
 	},
+	{/* hw:x,37 */
+		.name = "QCHAT",
+		.stream_name = "QCHAT",
+		.cpu_dai_name = "QCHAT",
+		.platform_name  = "msm-pcm-voice",
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ignore_suspend = 1,
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		/* this dai link has playback support */
+		.ignore_pmdown_time = 1,
+		.be_id = MSM_FRONTEND_DAI_QCHAT,
+	},
 	/* Backend I2S DAI Links */
 	{
 		.name = LPASS_BE_PRI_MI2S_RX,
@@ -2280,7 +2314,7 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 			ASYNC_DPCM_SND_SOC_HW_PARAMS,
 		.be_id = MSM_BACKEND_DAI_PRI_MI2S_RX,
 		.init = &msm_audrx_init,
-		.be_hw_params_fixup = msm_pri_rx_be_hw_params_fixup,
+		.be_hw_params_fixup = msm_mi2s_rx_be_hw_params_fixup,
 		.ops = &msm8952_mi2s_be_ops,
 		.ignore_suspend = 1,
 	},
@@ -2294,7 +2328,7 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.be_id = MSM_BACKEND_DAI_SECONDARY_MI2S_RX,
-		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.be_hw_params_fixup = msm_mi2s_rx_be_hw_params_fixup,
 		.ops = &msm8952_sec_mi2s_be_ops,
 		.ignore_suspend = 1,
 	},
@@ -2324,7 +2358,7 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.be_id = MSM_BACKEND_DAI_QUATERNARY_MI2S_RX,
-		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.be_hw_params_fixup = msm_mi2s_rx_be_hw_params_fixup,
 		.ops = &msm8952_quat_mi2s_be_ops,
 		.ignore_pmdown_time = 1, /* dai link has playback support */
 		.ignore_suspend = 1,
@@ -2540,7 +2574,7 @@ static struct snd_soc_dai_link msm8952_hdmi_dba_dai_link[] = {
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.be_id = MSM_BACKEND_DAI_QUINARY_MI2S_RX,
-		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.be_hw_params_fixup = msm_mi2s_rx_be_hw_params_fixup,
 		.ops = &msm8952_quin_mi2s_be_ops,
 		.ignore_pmdown_time = 1, /* dai link has playback support */
 		.ignore_suspend = 1,
@@ -2558,7 +2592,7 @@ static struct snd_soc_dai_link msm8952_quin_dai_link[] = {
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.be_id = MSM_BACKEND_DAI_QUINARY_MI2S_RX,
-		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.be_hw_params_fixup = msm_mi2s_rx_be_hw_params_fixup,
 		.ops = &msm8952_quin_mi2s_be_ops,
 		.ignore_pmdown_time = 1, /* dai link has playback support */
 		.ignore_suspend = 1,
@@ -2925,13 +2959,11 @@ static struct file_operations quin_status_proc_ops = {
 
 static void create_quin_status_proc_file(void)
 {
-	printk("create quin status proc file\n");
 	quin_status_proc_file = proc_create(QUIN_STATUS_PROC_FILE,0666,NULL,&quin_status_proc_ops);
 }
 static void remove_quin_status_proc_file(void)
 {
 	extern struct proc_dir_entry proc_root;
-	printk("remove quin status proc file\n");
 	remove_proc_entry(QUIN_STATUS_PROC_FILE,&proc_root);
 }
 //Enable basic function for external-tfa-speaker;asus_bsp--
@@ -3027,7 +3059,7 @@ static int msm8952_asoc_machine_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err1;
 	}
-	
+
 	muxsel = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 			"csr_gp_io_mux_spkr_ctl");
 	if (!muxsel) {
@@ -3091,7 +3123,7 @@ parse_mclk_freq:
 		goto err;
 	}
 
-    num_strings = of_property_count_strings(pdev->dev.of_node,
+	num_strings = of_property_count_strings(pdev->dev.of_node,
 			wsa);
 	if (num_strings > 0) {
 		if (wsa881x_get_probing_count() < 2) {
@@ -3188,7 +3220,7 @@ parse_mclk_freq:
 		else if (!strcmp(ext_pa_str, "quinary"))
 			pdata->ext_pa = (pdata->ext_pa | QUIN_MI2S_ID);
 	}
-	pr_err("%s: ext_pa = %d\n", __func__, pdata->ext_pa);
+	pr_debug("%s: ext_pa = %d\n", __func__, pdata->ext_pa);
 
 /* ASUS_BSP mei_huang +++ */
 	g_gpio_audio_debug = of_get_named_gpio(pdev->dev.of_node, "AUDIO_DEBUG", 0);
@@ -3297,18 +3329,19 @@ parse_mclk_freq:
 			ret);
 		goto err;
 	}
+
 	//Create the quin checking status proc file;asus_bsp++
-	pr_err("%s:  before create_quin_status_proc_file\n",
-				__func__);
 	create_quin_status_proc_file();
-	pr_err("%s:  after create_quin_status_proc_file\n",
+	pr_debug("%s:  after create_quin_status_proc_file\n",
 				__func__);
 	//Create the quin checking status proc file;asus_bsp--
+
 	//ASUS_BSP +++ tyree_liu@asus.com  add for codec_status
        if(!codec_status){
                codec_status=1;
        }
 	//ASUS_BSP +++ tyree_liu@asus.com  add for codec_status
+
 	return 0;
 err:
 	if (pdata->vaddr_gpio_mux_spkr_ctl)
@@ -3328,13 +3361,16 @@ err:
 	}
 err1:
 	devm_kfree(&pdev->dev, pdata);
+
 	//remove the quin checking status proc file;asus_bsp++
 	if(quin_status_proc_file)
 		remove_quin_status_proc_file();
 	//remove the quin checking status proc file;asus_bsp--
+
 	//ASUS_BSP +++ tyree_liu@asus.com  add for codec_status
     codec_status=0;
 	//ASUS_BSP --- tyree_liu@asus.com  add for codec_status
+
 	return ret;
 }
 
@@ -3362,12 +3398,12 @@ static int msm8952_asoc_machine_remove(struct platform_device *pdev)
 	}
 	snd_soc_unregister_card(card);
 	mutex_destroy(&pdata->cdc_mclk_mutex);
-	
+
 	//remove the quin checking status proc file;asus_bsp++
 	if(quin_status_proc_file)
 		remove_quin_status_proc_file();
 	//remove the quin checking status proc file;asus_bsp--
-	
+
 	return 0;
 }
 

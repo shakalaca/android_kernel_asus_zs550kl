@@ -177,23 +177,6 @@ static char *initcall_command_line;
 static char *execute_command;
 static char *ramdisk_execute_command;
 
-//ASUS_BSP kerwin_chen : add for kernel charger mode. +++
-bool g_Charger_mode = false;
-
-static int set_charger_mode(char *str)
-{
-    if ( strcmp("charger", str) == 0 )
-        g_Charger_mode = true;
-    else
-        g_Charger_mode = false;
-
-    printk("g_Charger_mode = %d\n", g_Charger_mode);
-    return 0;
-}
-__setup("androidboot.mode=", set_charger_mode);
-EXPORT_SYMBOL(g_Charger_mode);
-//ASUS_BSP kerwin_chen : add for kernel charger mode. ---
-
 //<ASUS-Lotta_Lu-2015/02/29> Porting ID Information ++++
 int asus_project_id = 0;
 EXPORT_SYMBOL(asus_project_id);
@@ -220,29 +203,6 @@ static int set_project_id(char *str)
 	return 0;
 }
 __setup("PRJ_ID=",set_project_id);
-
-int asus_fp_id = 0;
-EXPORT_SYMBOL(asus_fp_id);
-
-static int set_asus_fp_id(char *str)
-{
-	if(strcmp("0",str) == 0)
-	{
-		asus_fp_id = SYNAPTICS;
-	}
-	else if (strcmp("1",str) == 0)
-	{
-		asus_fp_id = GOODIX;
-	}
-	else
-	{
-		asus_fp_id = UNKNOWN_FP_ID;
-	}
-	
-	return 0;
-}
-__setup("ASUS_FP_ID=",set_asus_fp_id);
-
 
 int asus_hw_id = 0;
 EXPORT_SYMBOL(asus_hw_id);
@@ -345,6 +305,23 @@ static int get_lcd_uniqueId(char *str)
 __setup("LCD_UNIQUEID=", get_lcd_uniqueId);
 //<ASUS-Hank2_Liu-2016/04/27> Read Unique ID Information ------
 
+
+//ASUS_BSP kerwin_chen : add for kernel charger mode. +++
+bool g_Charger_mode = false;
+
+static int set_charger_mode(char *str)
+{
+    if ( strcmp("charger", str) == 0 )
+	       g_Charger_mode = true;
+    else
+        g_Charger_mode = false;
+
+    printk("g_Charger_mode = %d\n", g_Charger_mode);
+    return 0;
+}
+__setup("androidboot.mode=", set_charger_mode);
+EXPORT_SYMBOL(g_Charger_mode);
+//ASUS_BSP kerwin_chen : add for kernel charger mode. ---
 
 /*
  * Used to generate warnings if static_key manipulation functions are used

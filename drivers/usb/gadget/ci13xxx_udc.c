@@ -2432,13 +2432,13 @@ static void isr_resume_handler(struct ci13xxx *udc)
 			  CI13XXX_CONTROLLER_RESUME_EVENT);
 		if (udc->transceiver)
 			usb_phy_set_suspend(udc->transceiver, 0);
+		udc->suspended = 0;
 		udc->driver->resume(&udc->gadget);
 		spin_lock(udc->lock);
 
 		if (udc->rw_pending)
 			purge_rw_queue(udc);
 
-		udc->suspended = 0;
 	}
 }
 
@@ -3903,8 +3903,9 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 
 	_udc = udc;
 	return retval;
-
+#ifdef CONFIG_USB_GADGET_DEBUG_FILES
 del_udc:
+#endif
 	usb_del_gadget_udc(&udc->gadget);
 remove_trans:
 	if (udc->transceiver)

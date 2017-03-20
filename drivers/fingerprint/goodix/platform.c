@@ -32,7 +32,6 @@ int gf_parse_dts(struct gf_dev* gf_dev)
         return -1;
     }
 
-	printk("[Goodix] : gf_parse_dts ENTER!\n");
 	gf_dev->vreg = regulator_get(&gf_dev->spi->dev,"vcc_spi");
 	if (!gf_dev->vreg) {
 		dev_err(&gf_dev->spi->dev, "Unable to get vcc_spi\n");
@@ -79,7 +78,6 @@ int gf_parse_dts(struct gf_dev* gf_dev)
     //power on
 	gpio_direction_output(gf_dev->pwr_gpio, 1);
 
-	printk("[Goodix] : gf_parse_dts END!\n");
     return 0;
 }
 

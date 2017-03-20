@@ -727,10 +727,7 @@ struct vfe_device {
 	/* irq info */
 	uint32_t irq0_mask;
 	uint32_t irq1_mask;
-	/* last received irq */ 
-    uint32_t irq_status0; 
-    uint32_t irq_status1; 
-    uint32_t ping_pong_status; 
+	uint32_t ignore_irq;//ASUS_BSP ZZ++ Fix vfe error
 };
 
 struct vfe_parent_device {

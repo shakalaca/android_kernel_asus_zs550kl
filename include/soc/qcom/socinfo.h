@@ -62,6 +62,8 @@
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8916")
 #define early_machine_is_msm8917()	\
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8917")
+#define early_machine_is_msm8920()	\
+	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8920")
 #define early_machine_is_msm8940()	\
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8940")
 #define early_machine_is_msm8936()	\
@@ -94,8 +96,6 @@
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8937")
 #define early_machine_is_msm8996()	\
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8996")
-#define early_machine_is_msm8996_auto()	\
-	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8996-cdp")
 #define early_machine_is_msm8929()	\
 	of_flat_dt_is_compatible(of_get_flat_dt_root(), "qcom,msm8929")
 #define early_machine_is_mdm9607()	\
@@ -126,6 +126,7 @@
 #define early_machine_is_msm8909()	0
 #define early_machine_is_msm8916()	0
 #define early_machine_is_msm8917()	0
+#define early_machine_is_msm8920()	0
 #define early_machine_is_msm8940()	0
 #define early_machine_is_msm8936()	0
 #define early_machine_is_msm8939()	0
@@ -183,6 +184,7 @@ enum msm_cpu {
 	MSM_CPU_8909,
 	MSM_CPU_8916,
 	MSM_CPU_8917,
+	MSM_CPU_8920,
 	MSM_CPU_8940,
 	MSM_CPU_8936,
 	MSM_CPU_8939,
@@ -229,6 +231,47 @@ enum pmic_model {
 	PMIC_MODEL_UNKNOWN	= 0xFFFFFFFF
 };
 
+//<ASUS-BSP-Jessie_Tian-20161031>create proc/bootinfo node to get fw version+++
+typedef enum
+{
+   IMAGE_INDEX_SBL = 0,
+   IMAGE_INDEX_TZ = 1,
+   IMAGE_INDEX_TZSECAPP = 2,
+   IMAGE_INDEX_RPM = 3,
+   IMAGE_INDEX_SDI = 4,
+   IMAGE_INDEX_HYPERVISOR = 5,
+   IMAGE_INDEX_RESERVED6 = 6,
+   IMAGE_INDEX_RESERVED7 = 7,
+   IMAGE_INDEX_RESERVED8 = 8,
+   IMAGE_INDEX_APPSBL = 9,
+   IMAGE_INDEX_APPS = 10,
+   IMAGE_INDEX_MPSS = 11,
+   IMAGE_INDEX_ADSP = 12,
+   IMAGE_INDEX_WCNS = 13,
+   IMAGE_INDEX_VENUS = 14,
+   IMAGE_INDEX_RESERVED15 = 15,
+   IMAGE_INDEX_RESERVED16 = 16,
+   IMAGE_INDEX_RESERVED17 = 17,
+   IMAGE_INDEX_RESERVED18 = 18,
+   IMAGE_INDEX_RESERVED19 = 19,
+   IMAGE_INDEX_RESERVED20 = 20,
+   IMAGE_INDEX_RESERVED21 = 21,
+   IMAGE_INDEX_RESERVED22 = 22,
+   IMAGE_INDEX_RESERVED23 = 23,
+   IMAGE_INDEX_RESERVED24 = 24,
+   IMAGE_INDEX_RESERVED25 = 25,
+   IMAGE_INDEX_RESERVED26 = 26,
+   IMAGE_INDEX_RESERVED27 = 27,
+   IMAGE_INDEX_RESERVED28 = 28,
+   IMAGE_INDEX_RESERVED29 = 29,
+   IMAGE_INDEX_RESERVED30 = 30,
+   IMAGE_INDEX_RESERVED31 = 31,
+   IMAGE_INDEX_MAX = 32,
+   IMAGE_INDEX_ENUM_SIZE = 99 // facilitate compiler optimization
+} image_index_type;
+//<ASUS-BSP-Jessie_Tian-20161031>create proc/bootinfo node to get fw version---
+
+
 enum msm_cpu socinfo_get_msm_cpu(void);
 uint32_t socinfo_get_id(void);
 uint32_t socinfo_get_version(void);
@@ -237,6 +280,7 @@ char *socinfo_get_build_id(void);
 uint32_t socinfo_get_platform_type(void);
 uint32_t socinfo_get_platform_subtype(void);
 uint32_t socinfo_get_platform_version(void);
+uint32_t socinfo_get_serial_number(void);
 enum pmic_model socinfo_get_pmic_model(void);
 uint32_t socinfo_get_pmic_die_revision(void);
 int __init socinfo_init(void) __must_check;

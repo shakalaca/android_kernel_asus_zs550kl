@@ -1,4 +1,3 @@
-source "drivers/fingerprint/synaptics/Kconfig"
 
 source "drivers/fingerprint/goodix/Kconfig"
 

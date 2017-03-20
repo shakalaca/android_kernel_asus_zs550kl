@@ -2013,7 +2013,7 @@ static int32_t Olivia_platform_probe(struct platform_device *pdev)
 	int32_t rc = 0;
 	//,gp_sdio_2_clk,ret;
 	//struct device_node *np = pdev->dev.of_node;
-	LOG_Handler(LOG_CDBG, "%s: Probe Start\n", __func__);
+	//LOG_Handler(LOG_CDBG, "%s: Probe Start\n", __func__);
 	LOG_Handler(LOG_DBG,"[8953_laser], Olivia_platform_probe Enter");
 /*
 	////
