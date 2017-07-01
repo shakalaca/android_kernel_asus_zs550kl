@@ -252,7 +252,7 @@
 	qcom,lra-auto-res-mode="none";
 	qcom,lra-high-z="opt1";
 	qcom,lra-res-cal-period = <0>;
-	qcom,wave-play-rate-us = <4165>;
+	qcom,wave-play-rate-us = <4255>;
 	qcom,vmax-mv = <1160>;
 	qcom,brake-pattern = [00 00 00 00];
 };

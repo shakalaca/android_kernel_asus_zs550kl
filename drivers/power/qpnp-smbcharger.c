@@ -5026,6 +5026,11 @@ static void handle_usb_removal(struct smbchg_chip *chip)
 		chip->typec_current_ma = 0;
 	/* cancel/wait for hvdcp pending work if any */
 	cancel_delayed_work_sync(&chip->hvdcp_det_work);
+	//relax wakelock qpnp-smbcharger-x,due to hvdcp_det_work not cancel sucessed.
+	if(chip->wake_reasons == 0x10){
+		pr_smb(PR_STATUS, "relax wakelock PM_DETECT_HVDCP\n");
+		smbchg_relax(chip, PM_DETECT_HVDCP);	
+	}
 	smbchg_change_usb_supply_type(chip, POWER_SUPPLY_TYPE_UNKNOWN);
 
 	if (!chip->skip_usb_notification) {
@@ -10435,7 +10440,7 @@ static void asus_handler_usb_removal(struct smbchg_chip *chip)
 	cancel_delayed_work(&chip->hvdcp_timeout_work);
 	cancel_delayed_work(&chip->hvdcp3_back_5V_work);
 	cancel_delayed_work(&chip->dfp_type_detect_work);
-	cancel_delayed_work(&chip->check_usb_connector_work);
+	//cancel_delayed_work(&chip->check_usb_connector_work);
 	cancel_delayed_work(&chip->set_usb_connector_work);
 	//chip->force_rerun_apsd=false;
 	chip->read_adc_work_done=false;
@@ -11709,8 +11714,9 @@ static int smbchg_probe(struct spmi_device *spmi)
            printk(KERN_EMERG "[SMBCHG] %s: fail to register charger switch\n", __func__);
 		   goto out;
     } else {
-            chip->usb_connector_event = gpio_get_value(chip->usb_thermal_irq);
-            switch_set_state(&chip->usb_thermal, chip->usb_connector_event);
+            //chip->usb_connector_event = gpio_get_value(chip->usb_thermal_irq);
+            //switch_set_state(&chip->usb_thermal, chip->usb_connector_event);
+            schedule_delayed_work(&chip->check_usb_connector_work, msecs_to_jiffies(5000));
     }
 	
 	rc = determine_initial_status(chip);

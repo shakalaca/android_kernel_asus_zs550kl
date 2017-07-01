@@ -695,25 +695,25 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 			g_ZR = mbhc->zr;
 			//printk("wcd_mbhc_v2 : print hs_imp_val : LL = %d , RR = %d\n",g_ZL, g_ZR);
 			/* ASUS_BSP ---*/
-			if ((mbhc->zl > mbhc->mbhc_cfg->linein_th &&
-				mbhc->zl < MAX_IMPED) &&
-				(mbhc->zr > mbhc->mbhc_cfg->linein_th &&
-				 mbhc->zr < MAX_IMPED) &&
-				(jack_type == SND_JACK_HEADPHONE)) {
-				jack_type = SND_JACK_LINEOUT;
-				mbhc->current_plug = MBHC_PLUG_TYPE_HIGH_HPH;
-				if (mbhc->hph_status) {
-					mbhc->hph_status &= ~(SND_JACK_HEADSET |
-							SND_JACK_LINEOUT |
-							SND_JACK_UNSUPPORTED);
-					wcd_mbhc_jack_report(mbhc,
-							&mbhc->headset_jack,
-							mbhc->hph_status,
-							WCD_MBHC_JACK_MASK);
-				}
-				pr_debug("%s: Marking jack type as SND_JACK_LINEOUT\n",
-				__func__);
-			}
+			//if ((mbhc->zl > mbhc->mbhc_cfg->linein_th &&
+			//	mbhc->zl < MAX_IMPED) &&
+			//	(mbhc->zr > mbhc->mbhc_cfg->linein_th &&
+			//	 mbhc->zr < MAX_IMPED) &&
+			//	(jack_type == SND_JACK_HEADPHONE)) {
+			//	jack_type = SND_JACK_LINEOUT;
+			//	mbhc->current_plug = MBHC_PLUG_TYPE_HIGH_HPH;
+			//	if (mbhc->hph_status) {
+			//		mbhc->hph_status &= ~(SND_JACK_HEADSET |
+			//				SND_JACK_LINEOUT |
+			//				SND_JACK_UNSUPPORTED);
+			//		wcd_mbhc_jack_report(mbhc,
+			//				&mbhc->headset_jack,
+			//				mbhc->hph_status,
+			//				WCD_MBHC_JACK_MASK);
+			//	}
+			//	pr_debug("%s: Marking jack type as SND_JACK_LINEOUT\n",
+			//	__func__);
+			//}
 		}
 
 		mbhc->hph_status |= jack_type;
@@ -886,61 +886,6 @@ static void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
 	}
 exit:
 	pr_debug("%s: leave\n", __func__);
-}
-
-/* To determine if cross connection occured */
-static int wcd_check_cross_conn(struct wcd_mbhc *mbhc)
-{
-	u16 swap_res;
-	enum wcd_mbhc_plug_type plug_type = MBHC_PLUG_TYPE_NONE;
-	s16 reg1;
-	bool hphl_sch_res, hphr_sch_res;
-
-	if (wcd_swch_level_remove(mbhc)) {
-		pr_debug("%s: Switch level is low\n", __func__);
-		return -EINVAL;
-	}
-
-	/* If PA is enabled, dont check for cross-connection */
-	if (mbhc->mbhc_cb->hph_pa_on_status)
-		if (mbhc->mbhc_cb->hph_pa_on_status(mbhc->codec))
-			return false;
-
-	WCD_MBHC_REG_READ(WCD_MBHC_ELECT_SCHMT_ISRC, reg1);
-	/*
-	 * Check if there is any cross connection,
-	 * Micbias and schmitt trigger (HPHL-HPHR)
-	 * needs to be enabled. For some codecs like wcd9335,
-	 * pull-up will already be enabled when this function
-	 * is called for cross-connection identification. No
-	 * need to enable micbias in that case.
-	 */
-	wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
-	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ELECT_SCHMT_ISRC, 2);
-
-	WCD_MBHC_REG_READ(WCD_MBHC_ELECT_RESULT, swap_res);
-	pr_debug("%s: swap_res%x\n", __func__, swap_res);
-
-	/*
-	 * Read reg hphl and hphr schmitt result with cross connection
-	 * bit. These bits will both be "0" in case of cross connection
-	 * otherwise, they stay at 1
-	 */
-	WCD_MBHC_REG_READ(WCD_MBHC_HPHL_SCHMT_RESULT, hphl_sch_res);
-	WCD_MBHC_REG_READ(WCD_MBHC_HPHR_SCHMT_RESULT, hphr_sch_res);
-	pr_debug("%s: hphl_sch_res %d, hphr_sch_res %d", __func__, hphl_sch_res, hphr_sch_res);
-//	if (!(hphl_sch_res || hphr_sch_res)) {
-//		plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
-//		pr_debug("%s: Cross connection identified\n", __func__);
-//	} else {
-//		pr_debug("%s: No Cross connection found\n", __func__);
-//	}
-
-	/* Disable schmitt trigger and restore micbias */
-	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ELECT_SCHMT_ISRC, reg1);
-	pr_debug("%s: leave, plug type: %d\n", __func__,  plug_type);
-
-	return (plug_type == MBHC_PLUG_TYPE_GND_MIC_SWAP) ? true : false;
 }
 
 static bool wcd_is_special_headset(struct wcd_mbhc *mbhc)
@@ -1206,7 +1151,8 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	}
 
 	do {
-		cross_conn = wcd_check_cross_conn(mbhc);
+		//cross_conn = wcd_check_cross_conn(mbhc);
+		cross_conn = 0;
 		try++;
 	} while (try < GND_MIC_SWAP_THRESHOLD);
 	/*
@@ -1300,7 +1246,8 @@ correct_plug_type:
 
 		if ((!hs_comp_res) && (!is_pa_on)) {
 			/* Check for cross connection*/
-			ret = wcd_check_cross_conn(mbhc);
+			//ret = wcd_check_cross_conn(mbhc);
+			ret = 0;
 			if (ret < 0) {
 				continue;
 			} else if (ret > 0) {

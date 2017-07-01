@@ -760,10 +760,9 @@ void pm_print_active_wakeup_sources(void)
 		}
 	}
 
-	if (!active && last_activity_ws){
+	if (!active && last_activity_ws)
 		pr_info("last active wakeup source: %s\n",
 			last_activity_ws->name);
-	}
 	rcu_read_unlock();
 }
 EXPORT_SYMBOL_GPL(pm_print_active_wakeup_sources);
@@ -806,7 +805,7 @@ void asus_dump_active_wakeup_sources(bool caller_allow_sleep)
 			pr_info("[PM] active wakeup source: %s\n", ws->name);
 
 			if(caller_allow_sleep) {
-				ASUSEvtlog("[PM] active wake lock: %s\n", ws->name);
+				ASUSEvtlog("[PM] active wakeup source: %s\n", ws->name);
 			}
 
 			if(!strncmp(ws->name, "PowerManagerService", strlen("PowerManagerService")))

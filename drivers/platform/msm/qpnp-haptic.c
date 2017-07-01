@@ -1351,7 +1351,7 @@ static ssize_t qpnp_hap_vmax_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", ret);
 }
 
-static int asus_vmax_mv[7] = {696, 928, 1160, 1392, 1624, 1856, 1392}; //level_general_0~level_general_5,level_alarm
+static int asus_vmax_mv[7] = {696, 928, 1044, 1160, 1276, 1392, 1392}; //level_general_0~level_general_5,level_alarm
 static ssize_t qpnp_hap_vmax_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -1377,6 +1377,54 @@ static ssize_t qpnp_hap_vmax_store(struct device *dev,
 	return count;
 }
 //wxtest
+//<ASUS-alexwang20170112>add sensor calibration node+++++
+static uint16_t gsensorcalibration=0;
+static ssize_t gsensorcalibration_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", gsensorcalibration);
+}
+static ssize_t gsensorcalibration_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	int value = 0;
+	sscanf(buf, "%d", &value);
+        gsensorcalibration=value;
+	return count;
+}
+static uint16_t psensorcalibration=0;
+static ssize_t psensorcalibration_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", psensorcalibration);
+}
+static ssize_t psensorcalibration_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	int value = 0;
+	sscanf(buf, "%d", &value);
+        psensorcalibration=value;
+	return count;
+}
+
+static uint16_t lsensorcalibration=0;
+static ssize_t lsensorcalibration_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n",lsensorcalibration);
+}
+static ssize_t lsensorcalibration_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	int value = 0;
+	sscanf(buf, "%d", &value);
+        lsensorcalibration=value;
+	return count;
+}
+//<ASUS-alexwang20170112>add sensor calibration node-----
 
 /* sysfs attributes */
 static struct device_attribute qpnp_hap_attrs[] = {
@@ -1430,6 +1478,18 @@ static struct device_attribute qpnp_hap_attrs[] = {
 			qpnp_hap_vmax_show,
 			qpnp_hap_vmax_store),
 //wxtest
+	//<ASUS-alexwang20170112>add sensor calibration node++
+	__ATTR(gsensor_calibration, (S_IRUGO | S_IWUSR | S_IWGRP),
+				gsensorcalibration_show,
+				gsensorcalibration_store),
+	__ATTR(psensor_calibration, (S_IRUGO | S_IWUSR | S_IWGRP),
+				psensorcalibration_show,
+				psensorcalibration_store),
+	__ATTR(lsensor_calibration, (S_IRUGO | S_IWUSR | S_IWGRP),
+				lsensorcalibration_show,
+				lsensorcalibration_store),
+	//<ASUS-alexwang20170112>add sensor calibration node--
+
 };
 
 static int calculate_lra_code(struct qpnp_hap *hap)

@@ -2197,7 +2197,7 @@ void resume_console(void)
 		{
 			gpio_irq_cnt = gpio_irq_cnt>7?7:gpio_irq_cnt;
 			for (i=0;i<gpio_irq_cnt;i++)
-				ASUSEvtlog("[PM] GPIO triggered: %d\n", gpio_resume_irq[i]);
+				//ASUSEvtlog("[PM] GPIO triggered: %d\n", gpio_resume_irq[i]);
 			gpio_irq_cnt=0; //clear log count
 		}
 		if (gic_irq_cnt>0)
@@ -2206,7 +2206,7 @@ void resume_console(void)
 			for (i=0;i<gic_irq_cnt;i++)
 			{
 				log_wakeup_reason(gic_resume_irq[i]);
-				ASUSEvtlog("[PM] IRQs triggered: %d\n", gic_resume_irq[i]);
+				//ASUSEvtlog("[PM] IRQs triggered: %d\n", gic_resume_irq[i]);
 			}
 			gic_irq_cnt=0;	//clear log count
 		}
