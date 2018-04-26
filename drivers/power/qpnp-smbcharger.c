@@ -10276,13 +10276,13 @@ static void asus_check_hvdcp_flag_work(struct work_struct *work)
 				check_hvdcp_flag_work.work);
 		int rc;
 		int capacity;
-		bool cable_in = is_usb_present(chip);
+	//	bool cable_in = is_usb_present(chip);
 
-		if(!cable_in){
+		if(!chip->usb_present){
 			printk("[CHARGE]cable is out, not do adc read\n");
 			return;
 		}
-				
+
 		capacity=get_prop_batt_capacity(chip);
 		pr_debug("[CHARGE]capacity ====> %d,hvdcp_flag=%d\n",capacity,chip->hvdcp_flag);
 
@@ -10421,8 +10421,8 @@ static void asus_start_adc_switch_work(struct work_struct *work)
 		int capacity;
 		static bool asus_rerun_apsd = false;
 
-		if(!asus_rerun_apsd && (3 == chip->hvdcp_flag) && (true == g_Charger_mode)){
-			pr_err("[CHARGE] : rerun apsd\n");
+		if(!asus_rerun_apsd && (3 == chip->hvdcp_flag)){
+			pr_info("[CHARGE] : car adapter rerun apsd\n");
 			asus_rerun_apsd = true;
 			chip->hvdcp_3_det_ignore_uv = true;	
 			rerun_apsd(chip);
