@@ -47,6 +47,8 @@
 #include <linux/cpuset.h>
 #include <linux/vmpressure.h>
 #include <linux/zcache.h>
+#include <linux/slab.h>
+
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/almk.h>
@@ -96,6 +98,8 @@ static unsigned long lowmem_count(struct shrinker *s,
 
 static atomic_t shift_adj = ATOMIC_INIT(0);
 static short adj_max_shift = 353;
+unsigned long time_out;
+
 module_param_named(adj_max_shift, adj_max_shift, short,
 	S_IRUGO | S_IWUSR);
 
@@ -147,29 +151,22 @@ static int lmk_vmpressure_notifier(struct notifier_block *nb,
 	int other_free, other_file;
 	unsigned long pressure = action;
 	int array_size = ARRAY_SIZE(lowmem_adj);
+	other_file = global_page_state(NR_FILE_PAGES)+zcache_pages()-global_page_state(NR_SHMEM)-total_swapcache_pages();
+	other_free = global_page_state(NR_FREE_PAGES);
 
 	if (!enable_adaptive_lmk)
 		return 0;
 
-	if (pressure >= 95) {
-		other_file = global_page_state(NR_FILE_PAGES) + zcache_pages() -
-			global_page_state(NR_SHMEM) -
-			total_swapcache_pages();
-		other_free = global_page_state(NR_FREE_PAGES);
+	//ASUS_BSP print pressure message
+	if (pressure >= 90)
+		lowmem_print(1,"pressure=%ld, other_file=%d, other_free=%d\n", pressure, other_file * 4096, other_free * 4096);
 
-		atomic_set(&shift_adj, 1);
-		trace_almk_vmpressure(pressure, other_free, other_file);
-	} else if (pressure >= 90) {
+	//ASUS_BSP adjust enable aLMK strategy (Hades only 4G)
+	if (pressure >= 98) {
 		if (lowmem_adj_size < array_size)
 			array_size = lowmem_adj_size;
 		if (lowmem_minfree_size < array_size)
 			array_size = lowmem_minfree_size;
-
-		other_file = global_page_state(NR_FILE_PAGES) + zcache_pages() -
-			global_page_state(NR_SHMEM) -
-			total_swapcache_pages();
-
-		other_free = global_page_state(NR_FREE_PAGES);
 
 		if ((other_free < lowmem_minfree[array_size - 1]) &&
 			(other_file < vmpressure_file_min)) {
@@ -382,13 +379,58 @@ void tune_lmk_param(int *other_free, int *other_file, struct shrink_control *sc)
 	}
 }
 
+#define DTaskMax 4
+struct task_node {
+     struct list_head node;
+     struct task_struct *pTask;
+};
+enum EListAllocate {
+	EListAllocate_Init,
+	EListAllocate_Head,
+	EListAllocate_Body,
+	EListAllocate_Tail
+};
+static int list_insert(struct task_struct *pTask, struct list_head *pPosition)
+{
+	int nResult = 0;
+	struct task_node *pTaskNode;
+	pTaskNode = kmalloc(sizeof(struct task_node), GFP_ATOMIC);
+	if (pTaskNode) {
+		pTaskNode->pTask = pTask;
+		list_add(&pTaskNode->node, pPosition);
+		nResult = 1;
+	}
+	return nResult;
+}
+static void list_reset(struct list_head *pList)
+{
+	struct task_node *pTaskIterator;
+	struct task_node *pTaskNext;
+	list_for_each_entry_safe(pTaskIterator, pTaskNext, pList, node) {
+		list_del(&pTaskIterator->node);
+		kfree(pTaskIterator);
+	}
+}
+
+#define ASUS_MEMORY_DEBUG_MAXLEN    (128)
+#define ASUS_MEMORY_DEBUG_MAXCOUNT  (256)
+#define MINFREE_TO_PRINT_LOG 		(300)
+#define HEAD_LINE "PID       RSS    oom_adj       cmdline\n"
+char meminfo_str[ASUS_MEMORY_DEBUG_MAXCOUNT][ASUS_MEMORY_DEBUG_MAXLEN];
+
+
 static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 {
+	LIST_HEAD(ListHead);
+	int nTaskNum = 0;
+	struct task_node *pTaskIterator;
+	struct task_node *pTaskNext;
 	struct task_struct *tsk;
 	struct task_struct *selected = NULL;
 	unsigned long rem = 0;
 	int tasksize;
 	int i;
+	int meminfo_str_index = 0;
 	int ret = 0;
 	short min_score_adj = OOM_SCORE_ADJ_MAX + 1;
 	int minfree = 0;
@@ -407,6 +449,7 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		global_page_state(NR_FILE_PAGES) + zcache_pages())
 		other_file = global_page_state(NR_FILE_PAGES) + zcache_pages() -
 						global_page_state(NR_SHMEM) -
+						global_page_state(NR_UNEVICTABLE) -
 						total_swapcache_pages();
 	else
 		other_file = 0;
@@ -425,6 +468,8 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		}
 	}
 
+	//ASUS_BSP to prevent previous app to be killed by aLMK
+	adj_max_shift = 701;
 	ret = adjust_minadj(&min_score_adj);
 
 	lowmem_print(3, "lowmem_scan %lu, %x, ofree %d %d, ma %hd\n",
@@ -455,6 +500,7 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 
 		if (time_before_eq(jiffies, lowmem_deathpending_timeout)) {
 			if (test_task_flag(tsk, TIF_MEMDIE)) {
+				list_reset(&ListHead);
 				rcu_read_unlock();
 				/* give the system time to free up the memory */
 				msleep_interruptible(20);
@@ -468,6 +514,35 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 			continue;
 
 		oom_score_adj = p->signal->oom_score_adj;
+
+		if(selected_oom_score_adj < MINFREE_TO_PRINT_LOG)
+		{
+			tasksize = get_mm_rss(p->mm);
+			if(meminfo_str_index >= ASUS_MEMORY_DEBUG_MAXCOUNT )
+				meminfo_str_index = ASUS_MEMORY_DEBUG_MAXCOUNT - 1;
+			snprintf(meminfo_str[meminfo_str_index++], ASUS_MEMORY_DEBUG_MAXLEN, "%6d  %8ldkB %8d %s\n", p->pid, tasksize * (long)(PAGE_SIZE / 1024),oom_score_adj, p->comm);
+		}
+
+		if(strstr(p->comm,"launcher") != NULL  && min_score_adj > 200){
+			task_unlock(p);
+			//printk("lowmemorykiller: Don't kill launcher when min_socre_adj > 200\n");
+			continue;
+		}
+		if(strstr(p->comm,"process.acore") != NULL && min_score_adj > 200){
+			task_unlock(p);
+			//printk("lowmemorykiller: Don't kill acore when min_socre_adj > 200\n");
+			continue;
+		}
+		if(strstr(p->comm,"process.gapps") != NULL && min_score_adj > 200){
+			task_unlock(p);
+			//printk("lowmemorykiller: Don't kill gapps when min_socre_adj > 200\n");
+			continue;
+		}
+		if(strstr(p->comm,"process.media") != NULL && min_score_adj > 200){
+			task_unlock(p);
+			//printk("lowmemorykiller: Don't kill media when min_socre_adj > 200\n");
+			continue;
+		}
 		if (oom_score_adj < min_score_adj) {
 			task_unlock(p);
 			continue;
@@ -476,23 +551,112 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;
-		if (selected) {
-			if (oom_score_adj < selected_oom_score_adj)
-				continue;
-			if (oom_score_adj == selected_oom_score_adj &&
-			    tasksize <= selected_tasksize)
-				continue;
+
+		lowmem_print(3, "[Candidate] comm: %s, oom_score_adj: %d, tasksize: %d\n", p->comm, oom_score_adj, tasksize);
+		if (nTaskNum == 0) {
+			if (list_insert(p, &ListHead))
+				nTaskNum++;
+			else
+				lowmem_print(1, "Unable to allocate memory (%d)\n", EListAllocate_Init);
+		} else {
+			/* Find the node index that fit for current task */
+			int nError = 0;
+			struct list_head *pInsertPos = NULL;
+			struct task_node *pTaskSearchIterator;
+			struct task_node *pTaskSearchNext;
+			list_for_each_entry_safe(pTaskSearchIterator, pTaskSearchNext, &ListHead, node) {
+				int nTargeteAdj = 0;
+				int nTargetSize = 0;
+				struct task_struct *pTask;
+				pTask = pTaskSearchIterator->pTask;
+				if (!pTask)
+					continue;
+				task_lock(pTask);
+				if (pTask->signal)
+					nTargeteAdj = pTask->signal->oom_score_adj;
+				if (pTask->mm)
+					nTargetSize = get_mm_rss(pTask->mm);
+				task_unlock(pTask);
+				if (oom_score_adj > nTargeteAdj) {
+				} else if (oom_score_adj < nTargeteAdj) {
+					break;
+				} else {
+					if (tasksize > nTargetSize) {
+					} else if (tasksize <= nTargetSize) {
+						break;
+					}
+				}
+			}
+
+			/* Determine the insert position */
+			if (&pTaskSearchIterator->node == &ListHead) {
+				/* Add node to tail */
+				pInsertPos = ListHead.prev;
+				nError = EListAllocate_Tail;
+			} else if (&pTaskSearchIterator->node == ListHead.next) {
+				if (nTaskNum < DTaskMax) {
+					/* Add node to head */
+					pInsertPos = &ListHead;
+					nError = EListAllocate_Head;
+				}
+			} else {
+				/* Insert node to the list */
+				pInsertPos = pTaskSearchIterator->node.prev;
+				nError = EListAllocate_Body;
+			}
+			/* Perform insertion */
+			if (pInsertPos) {
+				if (list_insert(p, pInsertPos))
+					nTaskNum++;
+				else
+					lowmem_print(1, "Unable to allocate memory (%d)\n", nError);
+			}
+			/* Delete node if the kept tasks exceed the limit */
+			if (nTaskNum > DTaskMax) {
+				struct task_node *pDeleteNode = list_entry((ListHead).next, struct task_node, node);
+				list_del((ListHead).next);
+				kfree(pDeleteNode);
+				nTaskNum--;
+			}
 		}
-		selected = p;
-		selected_tasksize = tasksize;
-		selected_oom_score_adj = oom_score_adj;
-		lowmem_print(3, "select '%s' (%d), adj %hd, size %d, to kill\n",
-			     p->comm, p->pid, oom_score_adj, tasksize);
+
+		list_for_each_entry_safe(pTaskIterator, pTaskNext, &ListHead, node) {
+			char *szName = "NULL";
+			int nAdj = 0;
+			int nSize = 0;
+			struct task_struct *pTask;
+			pTask = pTaskIterator->pTask;
+			if (!pTask)
+				continue;
+			task_lock(pTask);
+			if (pTask->comm)
+				szName = pTask->comm;
+			if (pTask->signal)
+				nAdj = pTask->signal->oom_score_adj;
+			if (pTask->mm)
+				nSize = get_mm_rss(pTask->mm);
+			//lowmem_print(1, "[Current] comm: %s, oom_score_adj: %d, tasksize: %d\n", pTask->comm, nAdj, nSize);
+			task_unlock(pTask);
+		}
 	}
-	if (selected) {
+	//if (selected) {
+	list_for_each_entry_safe_reverse(pTaskIterator, pTaskNext, &ListHead, node) {
 		long cache_size = other_file * (long)(PAGE_SIZE / 1024);
 		long cache_limit = minfree * (long)(PAGE_SIZE / 1024);
 		long free = other_free * (long)(PAGE_SIZE / 1024);
+		selected = pTaskIterator->pTask;
+		if (!selected)
+			continue;
+		task_lock(selected);
+		if (test_tsk_thread_flag(selected, TIF_MEMDIE)) {
+			task_unlock(selected);
+			continue;
+		}
+		if (selected->signal)
+			selected_oom_score_adj = selected->signal->oom_score_adj;
+		if (selected->mm)
+			selected_tasksize = get_mm_rss(selected->mm);
+		task_unlock(selected);
 		trace_lowmemory_kill(selected, cache_size, cache_limit, free);
 		lowmem_print(1, "Killing '%s' (%d), adj %hd,\n" \
 				"   to free %ldkB on behalf of '%s' (%d) because\n" \
@@ -521,7 +685,7 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 			     (long)zcache_pages() * (long)(PAGE_SIZE / 1024),
 			     sc->gfp_mask);
 
-		if (lowmem_debug_level >= 2 && selected_oom_score_adj == 0) {
+		if (selected_oom_score_adj == 0) {
 			show_mem(SHOW_MEM_FILTER_NODES);
 			dump_tasks(NULL, NULL);
 		}
@@ -530,19 +694,27 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		set_tsk_thread_flag(selected, TIF_MEMDIE);
 		send_sig(SIGKILL, selected, 0);
 		rem += selected_tasksize;
-		rcu_read_unlock();
+
 		/* give the system time to free up the memory */
 		msleep_interruptible(20);
 		trace_almk_shrink(selected_tasksize, ret,
 			other_free, other_file, selected_oom_score_adj);
-	} else {
-		trace_almk_shrink(1, ret, other_free, other_file, 0);
-		rcu_read_unlock();
 	}
-
+	list_reset(&ListHead);
 	lowmem_print(4, "lowmem_scan %lu, %x, return %lu\n",
 		     sc->nr_to_scan, sc->gfp_mask, rem);
+
+	rcu_read_unlock();
 	mutex_unlock(&scan_mutex);
+	if(selected && (selected_oom_score_adj < MINFREE_TO_PRINT_LOG) && time_after(jiffies,time_out)){
+			int count = 0;
+			printk(HEAD_LINE);
+			while (count < meminfo_str_index ){
+				printk(meminfo_str[count]);
+				count++;
+			}
+			time_out = jiffies + HZ * 5;
+		}
 	return rem;
 }
 

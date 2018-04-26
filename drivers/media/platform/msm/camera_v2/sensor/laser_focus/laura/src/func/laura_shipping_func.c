@@ -265,7 +265,7 @@ int Olivia_Mailbox_Command(struct msm_laser_focus_ctrl_t *dev_t, uint16_t cal_da
 	status = Check_Ready_via_ICSR(dev_t);
 	if(status<0)
 	{
-		pr_err("[8953_laser], Check_Ready_via_ICSR return error %d\n",status);
+		LOG_Handler(LOG_ERR,"Check_Ready_via_ICSR return error %d\n",status);
 		return status;
 	}
 	//if(status !=0)
@@ -428,23 +428,23 @@ static int control_signal_setting(struct msm_laser_focus_ctrl_t *dev_t)
 
 	static uint16_t commands[5][2] =
 	{
-		{0x0710,0xD618},
+		{0x0710,0xD61A},
 		{0x0712,0xD586},
-		{0x0730,0x3C01},
+		{0x0730,0xD564},
 		{0x0732,0xE500},
 		{0x0700,0x0003}
 	};
 	uint16_t write_settings[5];
-
+#if 0
 	uint16_t verify_bytes[2];
 	uint16_t verify_word;
-
+#endif
 	for(i=0;i<5;i++)
 	{
 		write_settings[i]=swapped_data(commands[i][1]);
 		Laura_device_indirect_addr_write(dev_t, 0x18, 0x19,swapped_data(commands[i][0]),I2C_DATA_PORT,&write_settings[i],1);
 	}
-
+#if 0
 	for(i=0;i<5;i++)
 	{
 		getRegisterData(dev_t,commands[i][0],verify_bytes,2);
@@ -460,6 +460,7 @@ static int control_signal_setting(struct msm_laser_focus_ctrl_t *dev_t)
 			);
 		}
 	}
+#endif
 	return status;
 }
 bool compareConfidence(uint16_t confidence, uint16_t Range, uint16_t thd, uint16_t limit)
@@ -996,26 +997,39 @@ int Verify_MCPU_On_by_Time(struct msm_laser_focus_ctrl_t *dev_t){
 int Verify_Range_Data_Ready(struct msm_laser_focus_ctrl_t *dev_t){
 	struct timeval start,now;
 	uint16_t i2c_read_data = 0;
-	int status=0;	
+	int status=0;
+	int delay_time = 50;
+	int count = 0;
 	O_get_current_time(&start);
 	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
        while(1){
 		status = CCI_I2C_RdWord(dev_t, ICSR, &i2c_read_data);
 		if (status < 0)
        		return status;
-		
+		count++;
+		now = get_current_time();
 		if(i2c_read_data & NEW_DATA_IN_RESULT_REG){
-			LOG_Handler(LOG_DBG, "%s: range data ready\n", __func__);	
+			LOG_Handler(LOG_DBG, "%s: range data ready,count=%d, cost %lld ms\n",
+			 __func__,
+			 count,
+			((now.tv_sec * 1000000 + now.tv_usec) - (start.tv_sec * 1000000 + start.tv_usec) )/1000
+			 );
 			break;
 		}
-		now = get_current_time();
+
 				if(is_timeout(start,now,MEASURE_TIME_OUT_ms)){
 			LOG_Handler(LOG_ERR, "%s: fail (time out)\n", __func__);
                     return -OUT_OF_RANGE;
 				}
 		/* Delay: waitting laser sensor sample ready */
 		//usleep(READ_DELAY_TIME);
-		usleep_range(READY_DELAY_TIME,READY_DELAY_TIME);
+		usleep_range(1000*delay_time,1000*delay_time+10);
+		if(delay_time > 2)
+		{
+			delay_time = delay_time/2;
+			if(delay_time < 2)
+				delay_time = 2;
+		}
        }
        LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
 	return status;
@@ -1029,7 +1043,6 @@ int	Read_Range_Data(struct msm_laser_focus_ctrl_t *dev_t){
 	int status;
 	int errcode;
 	int result=0;
-	static int count = 0;
 
 	uint16_t IT_verify;
 
@@ -1080,79 +1093,77 @@ int	Read_Range_Data(struct msm_laser_focus_ctrl_t *dev_t){
 		}
 		ItB =  Settings[IT];
 
-		if(IT_verify < ItB)
-		{
-			if(confidence_level < confA){
-				result = 1;
-				Range =	9999;//means 0, for DIT, 9999
-				errcode = RANGE_ERR_NOT_ADAPT;
-			}
-		}
-		else
-		{
-			if( ItB*(confidence_level) < ItB*confA- (IT_verify - ItB)*(confC - confA) ){
-				result = 2;
-				Range =	9999;//means 0, for DIT, 9999
-				errcode = RANGE_ERR_NOT_ADAPT;
-			}
-		}
-		if(!result)
-		{
-			if(error_status==NO_ERROR){
+		if(error_status==NO_ERROR){
 
-				if(!result && Range == 0){
-					result = 3;
+			if(IT_verify < ItB)
+			{
+				if(confidence_level < confA){
+					result = 1;
 					Range =	9999;//means 0, for DIT, 9999
 					errcode = RANGE_ERR_NOT_ADAPT;
-				}
-				if(!result && compareConfidence(confidence_level,Range,thd,limit)){
-					result = 4;
-					Range =	9999;//means 0, for DIT, 9999
-					errcode = RANGE_ERR_NOT_ADAPT;
-				}
-				if(!result && Range==2047){
-					result = 8;
-					Range =	OUT_OF_RANGE;
-					errcode = RANGE_ADAPT;
-				}
-				if(!result && Range >= limit){
-					result = 9;
-					Range =	OUT_OF_RANGE;
-					errcode = RANGE_ADAPT;
-				}
-				if(!result)
-				{
-					result = 0;
-					if(Range < 100)
-					{
-						errcode = RANGE_ADAPT_WITH_LESS_ACCURACY;//new error code for DIT
-					}
-					else
-					{
-						errcode = RANGE_ADAPT;
-					}
 				}
 			}
 			else
 			{
-				if(error_status==GENERAL_ERROR)
-				{
-					result = 5;
+				if( ItB*(confidence_level) < ItB*confA- (IT_verify - ItB)*(confC - confA) ){
+					result = 2;
 					Range =	9999;//means 0, for DIT, 9999
 					errcode = RANGE_ERR_NOT_ADAPT;
 				}
-				else if(error_status==NEAR_FIELD){
-					result = 6;
-					Range = 0;//IN_RANGE ?
-					errcode = RANGE_ADAPT;
+			}
+			if(!result && Range == 0){
+				result = 3;
+				Range =	9999;//means 0, for DIT, 9999
+				errcode = RANGE_ERR_NOT_ADAPT;
+			}
+			if(!result && compareConfidence(confidence_level,Range,thd,limit)){
+				result = 4;
+				Range =	9999;//means 0, for DIT, 9999
+				errcode = RANGE_ERR_NOT_ADAPT;
+			}
+			if(!result && Range==2047){
+				result = 8;
+				Range =	OUT_OF_RANGE;
+				errcode = RANGE_ADAPT;
+			}
+			if(!result && Range >= limit){
+				result = 9;
+				Range =	OUT_OF_RANGE;
+				errcode = RANGE_ADAPT;
+			}
+			if(!result)
+			{
+				result = 0;
+				if(Range < 100)
+				{
+					errcode = RANGE_ADAPT_WITH_LESS_ACCURACY;//new error code for DIT
 				}
-				else if(error_status==FAR_FIELD){
-					result = 7;
-					Range =	OUT_OF_RANGE;
+				else
+				{
 					errcode = RANGE_ADAPT;
 				}
 			}
 		}
+		else
+		{
+			if(error_status==GENERAL_ERROR)
+			{
+				result = 5;
+				Range =	9999;//means 0, for DIT, 9999
+				errcode = RANGE_ERR_NOT_ADAPT;
+			}
+			else if(error_status==NEAR_FIELD){
+				result = 6;
+				Range = 0;//IN_RANGE ?
+				errcode = RANGE_ADAPT;
+			}
+			else if(error_status==FAR_FIELD){
+				result = 7;
+				Range =	OUT_OF_RANGE;
+				errcode = RANGE_ADAPT;
+			}
+		}
+
 	}
 	else
 	{
@@ -1171,36 +1182,30 @@ int	Read_Range_Data(struct msm_laser_focus_ctrl_t *dev_t){
 			measure_cached_range_updated = true;
 			LOG_Handler(LOG_CDBG, "%s: Range_Cached first updated!\n", __func__);
 		}
-#ifdef ASUS_FACTORY_BUILD
-
-	    count++;
-		LOG_Handler(LOG_CDBG, "%s: Range(%d) ErrCode(%d) RawRange(%d)\n", __func__,Range,ErrCode,(RawRange&DISTANCE_MASK)>>2);
-
-#else
-		count++;
-		if((count%50) == 0){
-			LOG_Handler(LOG_CDBG, "%s: Range(%d) ErrCode(%d) RawRange(%d)\n", __func__,Range,ErrCode,(RawRange&DISTANCE_MASK)>>2);
-		}
-#endif
-	}
-	else{
-		count++;
-		if((count%50) == 0){
-			LOG_Handler(LOG_CDBG, "%s: Range(%d) ErrCode(%d) RawRange(%d)\n", __func__,Range,ErrCode,(RawRange&DISTANCE_MASK)>>2);
-		}
 	}
 
-	if((ioctrl_read_value_cnt==LOG_SAMPLE_RATE)||proc_read_value_cnt){
-		LOG_Handler(LOG_DBG,"%s: conf(%d)  confA(%d) confC(%d) ItB(%d) IT_verify(0x2006:%d)\n", __func__, confidence_level, confA,confC,ItB,IT_verify);
-		LOG_Handler(LOG_DBG, "%s: status(%d) thd(%d) limit(%d) near(%d) Confidence(%d)\n", __func__,
+	if((ioctrl_read_value_cnt && ioctrl_read_value_cnt%LOG_SAMPLE_RATE == 0)||proc_read_value_cnt)
+	{
+#if 0
+		LOG_Handler(LOG_CDBG,"%s: conf(%d)  confA(%d) confC(%d) ItB(%d) IT_verify(0x2006:%d)\n", __func__, confidence_level, confA,confC,ItB,IT_verify);
+		LOG_Handler(LOG_CDBG, "%s: status(%d) thd(%d) limit(%d) near(%d) Confidence(%d)\n", __func__,
 			error_status>>13, thd, limit, thd_near_mm, confidence_level);
-		LOG_Handler(LOG_DBG, "%s: Range(%d) ErrCode(%d) RawRange(%d) result(%d)\n", __func__,Range,errcode,(RawRange&DISTANCE_MASK)>>2, result);
+		LOG_Handler(LOG_CDBG, "%s: Range(%d) ErrCode(%d) RawRange(%d) result(%d)\n", __func__,Range,errcode,(RawRange&DISTANCE_MASK)>>2, result);
+#endif
+		LOG_Handler(LOG_CDBG,"%s: conf(%d) confA(%d) confC(%d) ItB(%d) IT_verify(0x2006:%d)\n\
+status(%d) thd(%d) limit(%d) near(%d) Confidence(%d)\n\
+Range(%d) ErrCode(%d) RawRange(%d) Result(%d)\n",
+		 __func__,confidence_level,confA,confC,ItB,IT_verify,
+		 error_status>>13, thd, limit, thd_near_mm, confidence_level,
+		 Range,errcode,(RawRange&DISTANCE_MASK)>>2, result);
+		 if(ioctrl_read_value_cnt)
+			ioctrl_read_value_cnt = 0;//reset to 0 to avoid ioctrl read not add, but log also print
+
+		if(proc_read_value_cnt)
+			proc_read_value_cnt = 0;//reset to 0 to avoid ioctrl always show, cat value in single measure mode
 	}
 
-	//reset cnt for case that use both proc and ioctrl
-	proc_read_value_cnt=0;
 	return Range;
-	
 
 }
 
@@ -1237,7 +1242,7 @@ int Olivia_device_read_range(struct msm_laser_focus_ctrl_t *dev_t)
 		}
 		else if(!continuous_measure)//switch normal mode exit
 		{
-			LOG_Handler(LOG_CDBG,"continuous_measure mode disabled, stop measuring, return range %d\n",Range);
+			LOG_Handler(LOG_DBG,"continuous_measure mode disabled, stop measuring, return range %d\n",Range);
 			return Range;
 		}
 		else
@@ -1430,6 +1435,7 @@ int WaitMCPUOn(struct msm_laser_focus_ctrl_t *dev_t){
 			status = -TIMEOUT_VAL;
 			break;
 		}
+		usleep_range(READY_DELAY_TIME,READY_DELAY_TIME+1);
 	}
 
 	return status;

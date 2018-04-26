@@ -670,7 +670,7 @@ static int qpnp_typec_request_irqs(struct qpnp_typec_chip *chip)
 	REQUEST_IRQ(chip, chip->dfp_detect, "dfp-detect", dfp_detect_handler,
 			flags, true, rc);
 	REQUEST_IRQ(chip, chip->vbus_err, "vbus-err", vbus_err_handler,
-			flags, true, rc);
+			flags, false, rc);
 	REQUEST_IRQ(chip, chip->vconn_oc, "vconn-oc", vconn_oc_handler,
 			flags, true, rc);
 
@@ -693,7 +693,7 @@ static int qpnp_sypec_get_typec_mode(struct qpnp_typec_chip *chip)
 	}
 
 	return (reg & TYPEC_CURRENT_MASK);
-	
+
 }
 
 static int qpnp_typec_get_property(struct power_supply *psy,

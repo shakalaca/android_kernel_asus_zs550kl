@@ -17,14 +17,14 @@
 int GPIO_UP(struct msm_camera_power_ctrl_t *power_info, int gpio_num){
 	int rc = 0;
 
-	rc = msm_camera_request_gpio_table(
+/*	rc = msm_camera_request_gpio_table(
 		power_info->gpio_conf->cam_gpio_req_tbl,
 		power_info->gpio_conf->cam_gpio_req_tbl_size, GPIO_HIGH);
 	if(rc < 0){
 		LOG_Handler(LOG_ERR, "%s: request gpio failed\n", __func__);
 		return rc;
 	}
-		
+*/		
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->gpio_num[gpio_num],
 		GPIO_OUT_HIGH
@@ -46,6 +46,44 @@ int GPIO_DOWN(struct msm_camera_power_ctrl_t *power_info, int gpio_num){
 		power_info->gpio_conf->gpio_num_info->gpio_num[gpio_num],
 		GPIO_OUT_LOW
 	);
+
+/*	rc = msm_camera_request_gpio_table(
+		power_info->gpio_conf->cam_gpio_req_tbl,
+		power_info->gpio_conf->cam_gpio_req_tbl_size, GPIO_LOW);
+	if(rc < 0){
+		LOG_Handler(LOG_ERR, "%s: request gpio failed\n", __func__);
+		return rc;
+	}
+*/
+	return rc;
+}
+
+/** @brief Request GPIO 
+*
+*	@param power_info power controller for camera
+*
+*/
+int GPIO_REQUEST(struct msm_camera_power_ctrl_t *power_info){
+	int rc = 0;
+
+	rc = msm_camera_request_gpio_table(
+		power_info->gpio_conf->cam_gpio_req_tbl,
+		power_info->gpio_conf->cam_gpio_req_tbl_size, GPIO_HIGH);
+	if(rc < 0){
+		LOG_Handler(LOG_ERR, "%s: request gpio failed\n", __func__);
+		return rc;
+	}
+
+	return rc;
+}
+
+/** @brief Free GPIO 
+*
+*	@param power_info power controller for camera
+*
+*/
+int GPIO_FREE(struct msm_camera_power_ctrl_t *power_info){
+	int rc = 0;
 
 	rc = msm_camera_request_gpio_table(
 		power_info->gpio_conf->cam_gpio_req_tbl,
@@ -103,6 +141,22 @@ int GPIO_Handler(struct msm_laser_focus_ctrl_t *dev_t, int gpio_num, int ctrl){
 				return rc;
 			}
 			break;
+		case GPIO_ENABLE:
+			/*REQUEST GPIO */
+			rc = GPIO_REQUEST(power_info);
+			if(rc < 0){
+				LOG_Handler(LOG_ERR, "%s: request gpio failed\n", __func__);
+				return rc;
+			}
+			break;		
+		case GPIO_DISABLE:
+			/*FREE GPIO */
+			rc = GPIO_FREE(power_info);
+			if(rc < 0){
+				LOG_Handler(LOG_ERR, "%s: request gpio failed\n", __func__);
+				return rc;
+			}
+			break;	
 		default:
 			LOG_Handler(LOG_ERR, "%s: Invalid argument\n", __func__);
 			return -EINVAL;

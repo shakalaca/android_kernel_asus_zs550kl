@@ -91,6 +91,7 @@
 
 //ASUS BSP ++++
 #include <linux/gpio.h>
+extern int g_gpio_audio_debug;
 //ASUS BSP ++
 
 static int kernel_init(void *);
@@ -98,9 +99,6 @@ static int kernel_init(void *);
 extern void init_IRQ(void);
 extern void fork_init(unsigned long);
 extern void radix_tree_init(void);
-#ifndef CONFIG_DEBUG_RODATA
-static inline void mark_rodata_ro(void) { }
-#endif
 
 /*
  * Debug helper: via this flag we know that we are in 'early bootup code'
@@ -113,47 +111,6 @@ bool early_boot_irqs_disabled __read_mostly;
 
 enum system_states system_state __read_mostly;
 EXPORT_SYMBOL(system_state);
-//+++ ASUS_BSP : miniporting : Add for uart / kernel log
-int g_user_klog_mode = 1;
-EXPORT_SYMBOL(g_user_klog_mode);
-
-static int set_user_klog_mode(char *str)
-{
-    if ( strcmp("y", str) == 0 )
-    {
-        g_user_klog_mode = 1;
-    }
-    else
-    {
-        g_user_klog_mode = 0;
-    }
-
-    //printk("Kernel log mode = %d\n", g_user_klog_mode);
-    return 0;
-}
-early_param("klog", set_user_klog_mode);
-
-//tyree_liu@asus.com  +++ add for audio debug
-int g_user_dbg_mode = 1;
-EXPORT_SYMBOL(g_user_dbg_mode);
-//tyree_liu@asus.com --- add for audio debug
-
-static int set_user_dbg_mode(char *str)
-{
-    if ( strcmp("y", str) == 0 )
-    {
-        g_user_dbg_mode = 1;
-    }
-    else
-    {
-        g_user_dbg_mode = 0;
-    }
-
-    //printk("Kernel uart dbg mode = %d\n", g_user_dbg_mode);
-    return 0;
-}
-early_param("dbg", set_user_dbg_mode);
-//--- ASUS_BSP : miniporting : Add for uart / kernel log
 
 /*
  * Boot command-line arguments
@@ -183,61 +140,168 @@ EXPORT_SYMBOL(asus_project_id);
 
 static int set_project_id(char *str)
 {
-	if(strcmp("3",str) == 0) 
-	{
-		asus_project_id = ASUS_ZC552KL;
-	}
-	else if(strcmp("4",str) == 0)
-	{
-		asus_project_id = ASUS_ZS550KL;
-	}
-	else if(strcmp("5",str) == 0)
-	{
-		asus_project_id = ASUS_ZD552KL;
+	int prj_id,ret;
+	ret = kstrtoint(str,0,&prj_id);
+	if(!ret){
+		switch(prj_id){
+			case 2:
+				asus_project_id = ASUS_ZD552KL_PHOENIX;
+				break;
+			case 3:
+				asus_project_id = ASUS_ZE553KL;
+				break;
+			case 4:
+				asus_project_id = ASUS_ZS550KL;
+				break;
+			default:
+				asus_project_id = 0;
+		}
 	}
 	else
-	{
-		asus_project_id = 0;
-	}
-
+		pr_err("get project id error\n");
 	return 0;
 }
 __setup("PRJ_ID=",set_project_id);
 
+#ifdef ZE553KL
+int asus_fp_id = 0;
+EXPORT_SYMBOL(asus_fp_id);
+
+static int set_asus_fp_id(char *str)
+{
+	int fp_id,ret;
+	ret = kstrtoint(str,0,&fp_id);
+	if(!ret){
+		switch(fp_id){
+			case 0:
+				asus_fp_id = SYNAPTICS;
+				break;
+			case 1:
+				asus_fp_id = GOODIX;
+				break;
+			case 2:
+				asus_fp_id = GOODIX2;
+				break;
+			default:
+				asus_fp_id = UNKNOWN_FP_ID;
+		}
+	}
+	else
+		pr_err("get project id error\n");
+
+	return 0;
+}
+__setup("ASUS_FP_ID=",set_asus_fp_id);
+#endif
+
 int asus_hw_id = 0;
 EXPORT_SYMBOL(asus_hw_id);
 
+#ifdef ZE553KL
+int asus_mp_id=0;
+EXPORT_SYMBOL(asus_mp_id);
+#endif
+
 static int set_hw_id(char *str)
 {
-	if(strcmp("0",str) == 0)
-	{
-		asus_hw_id = ASUS_EVB;
-	}
-	else if(strcmp("1",str) == 0)
-	{
-		asus_hw_id = ASUS_SR1;
-	}
-	else if(strcmp("3",str) == 0)
-	{
-		asus_hw_id = ASUS_PR2;
-	}
-	else if(strcmp("4",str) == 0)
-	{
-		asus_hw_id = ASUS_SR2;
-	}
-	else if(strcmp("5",str) == 0)
-	{
-		asus_hw_id = ASUS_ER;
-	}
-	else if(strcmp("6",str) == 0)
-	{
-		asus_hw_id = ASUS_PR;
-	}
-	else if(strcmp("7",str) == 0)
-	{
-		asus_hw_id = ASUS_MP;
+	int hw_id,ret;
+	ret = kstrtoint(str,0,&hw_id);
+	if(!ret){
+		switch(hw_id){
+#if defined(ZE553KL)
+			case 0:
+				asus_hw_id = ASUS_MP;
+				asus_mp_id = 2;
+				break;
+			case 1:
+				asus_hw_id = ASUS_SR1;
+				break;
+			case 4:
+				asus_hw_id = ASUS_SR2;
+				break;
+			case 5:
+				asus_hw_id = ASUS_ER;
+				break;
+			case 6:
+				asus_hw_id = ASUS_PR1;
+				break;
+			case 2:
+				asus_hw_id = ASUS_PR2;
+				break;
+			case 7:
+				asus_hw_id = ASUS_MP;
+				asus_mp_id = 0;
+				break;
+			case 3:
+				asus_hw_id = ASUS_MP;
+				asus_mp_id = 1;
+#elif defined(ZS550KL)
+			case 0:
+				asus_hw_id = ASUS_EVB;
+				break;
+			case 1:
+				asus_hw_id = ASUS_SR1;
+				break;
+			case 3:
+				asus_hw_id = ASUS_PR2;
+				break;
+			case 4:
+				asus_hw_id = ASUS_SR2;
+				break;
+			case 5:
+				asus_hw_id = ASUS_ER;
+				break;
+			case 6:
+				asus_hw_id = ASUS_PR;
+				break;
+			case 7:
+				asus_hw_id = ASUS_MP;
+#elif defined(ZD552KL_PHOENIX)
+			case 1:
+				asus_hw_id = ASUS_SR1;
+				break;
+			case 2:
+				asus_hw_id = ASUS_ER1;
+				break;
+			case 4:
+				asus_hw_id = ASUS_SR2;
+				break;
+			case 5:
+				asus_hw_id = ASUS_ER2;
+				break;
+			case 6:
+				asus_hw_id = ASUS_PR;
+				break;
+			case 7:
+				asus_hw_id = ASUS_MP;
+				break;
+			case 0:
+				asus_hw_id = ASUS_MP2;
+				break;
+			case 3:
+				asus_hw_id = ASUS_RSRVD;
+#else
+			case 0:
+				asus_hw_id = ASUS_EVB;
+				break;
+			case 1:
+				asus_hw_id = ASUS_SR1;
+				break;
+			case 4:
+				asus_hw_id = ASUS_SR2;
+				break;
+			case 5:
+				asus_hw_id = ASUS_ER;
+				break;
+			case 6:
+				asus_hw_id = ASUS_PR;
+				break;
+			case 7:
+				asus_hw_id = ASUS_MP;
+#endif
+		}
 	}	
-	
+
 	return 0;
 }
 __setup("HW_ID=",set_hw_id);
@@ -247,23 +311,24 @@ EXPORT_SYMBOL(asus_lcd_id);
 
 static int set_lcd_id(char *str)
 {
-	if(strcmp("1",str) == 0)
-	{
-	   asus_lcd_id = 1;
+	int lcd_id,ret;
+	ret = kstrtoint(str,0,&lcd_id);
+	if(!ret){
+		switch(lcd_id){
+			case 1:
+				asus_lcd_id = 1;
+				break;
+			case 2:
+				asus_lcd_id = 2;
+				break;
+			case 3:
+				asus_lcd_id = 3;
+				break;
+			default:
+				asus_lcd_id = 0;
+		}
 	}
-	else if(strcmp("2",str) == 0)
-	{
-	   asus_lcd_id = 2;
-	}
-	else if (strcmp("3",str) == 0)
-	{
-		asus_lcd_id = 3;
-	}
-	else
-	{
-		asus_lcd_id = 0;
-	}
-	
+
 	return 0;
 }
 __setup("LCD_ID=",set_lcd_id);
@@ -275,19 +340,70 @@ EXPORT_SYMBOL(asus_rf_id);
 
 static int set_rf_id(char *str)
 {
-	if(strcmp("0",str) == 0) 
-	{
-		asus_rf_id = ASUS_WW;
+	int rf_id,ret;
+	ret = kstrtoint(str,0,&rf_id);
+	if(!ret){
+		switch(rf_id){
+#if defined(ZS550KL)
+			case 0:
+				asus_rf_id = ASUS_WW;
+				break;
+			case 2:
+				asus_rf_id = ASUS_CN;
+				break;
+#elif defined(ZE553KL)
+			case 0:
+				asus_rf_id = ASUS_WW;
+				break;
+			case 2:
+				asus_rf_id = ASUS_CN;
+				break;
+			case 3:
+				asus_rf_id = ASUS_CN6;
+				break;
+			case 4:
+				asus_rf_id = ASUS_WW_HADES;
+				break;
+			case 5:
+				asus_rf_id = ASUS_ID_IN;
+				break;
+			case 6:
+				asus_rf_id = ASUS_TW_JP;
+				break;
+			case 7:
+				asus_rf_id = ASUS_US_BR;
+				break;
+#elif defined(ZD552KL_PHOENIX)
+			case 0:
+				asus_rf_id = ASUS_WW;
+				break;
+			case 1:
+				asus_rf_id = ASUS_IN_ID;
+				break;
+			case 2:
+				asus_rf_id = ASUS_BR_US;
+				break;
+			case 3:
+				asus_rf_id = ASUS_IN_ID_SKY77645;
+				break;
+			case 4:
+				asus_rf_id = ASUS_WW2;
+				break;
+			case 5:
+				asus_rf_id = ASUS_IN_ID2;
+				break;
+			case 8:
+				asus_rf_id = ASUS_TW_CA;
+				break;
+			case 9:
+				asus_rf_id = ASUS_CN_CA;
+				break;
+#endif
+			default:
+				asus_rf_id = ASUS_UNKNOWN;		
+		}
 	}
-	else if(strcmp("2",str) == 0)
-	{
-		asus_rf_id = ASUS_CN;
-	}
-	else
-	{
-		asus_rf_id = ASUS_UNKNOWN;
-	}
-
+	
 	return 0;
 }
 __setup("ASUS_RF_ID=",set_rf_id);
@@ -426,8 +542,84 @@ static int __init loglevel(char *str)
 
 early_param("loglevel", loglevel);
 
+//+++ ASUS_BSP : miniporting : Add for uart / kernel log
+int g_user_klog_mode = 0;
+EXPORT_SYMBOL(g_user_klog_mode);
+
+static int set_user_klog_mode(char *str)
+{
+    if ( strcmp("y", str) == 0 )
+    {
+        g_user_klog_mode = 1;
+    }
+    else
+    {
+        g_user_klog_mode = 0;
+    }
+
+    //printk("Kernel log mode = %d\n", g_user_klog_mode);
+    return 0;
+}
+early_param("klog", set_user_klog_mode);
+int g_user_dbg_mode = 0;
+EXPORT_SYMBOL(g_user_dbg_mode);
+
+static int set_user_dbg_mode(char *str)
+{
+//ASUS_BSP younger +++
+	int ret;
+	ret = gpio_request(g_gpio_audio_debug, "AUDIO_DEBUG");
+	if (ret)
+		printk("%s: Failed to request gpio AUDIO_DEBUG %d\n", __func__, g_gpio_audio_debug); 
+#if 0
+		if(g_ASUS_PRJ_STAGE == STAGE_MP )
+		{
+			gpio_direction_output(g_gpio_audio_debug, 1);/* disable uart log, enable audio */
+		}
+#endif
+//ASUS_BSP Freeman ---
+if ( strcmp("y", str) == 0 )
+    {
+        g_user_dbg_mode = 1;
+       gpio_direction_output(g_gpio_audio_debug, 0); /* enable uart log, disable audio */
+    }
+    else
+    {
+        g_user_dbg_mode = 0;
+       gpio_direction_output(g_gpio_audio_debug, 1); /* disable uart log, enable audio */
+    }
+
+    printk("Kernel uart dbg mode = %d\n", g_user_dbg_mode);
+    return 0;
+}
+early_param("dbg", set_user_dbg_mode);
+//--- ASUS_BSP : miniporting : Add for uart / kernel log
+
+//ASUS_BSP Freeman : Add for rtb log +++
+int g_user_rtb_mode = 0;
+EXPORT_SYMBOL(g_user_rtb_mode);
+
+static int set_user_rtb_mode(char *str)
+{
+    if ( strcmp("y", str) == 0 )
+    {
+        g_user_rtb_mode = 1;
+    }
+    else
+    {
+        g_user_rtb_mode = 0;
+    }
+
+    //printk("RTB log mode = %d\n", g_user_rtb_mode);
+    return 0;
+}
+early_param("rtb_enable", set_user_rtb_mode);
+//ASUS_BSP Freeman : Add for rtb log  ---
+
+
 /* Change NUL term back to "=", to make "param" the whole string. */
-static int __init repair_env_string(char *param, char *val, const char *unused)
+static int __init repair_env_string(char *param, char *val,
+				    const char *unused, void *arg)
 {
 	if (val) {
 		/* param=val or param="val"? */
@@ -444,14 +636,15 @@ static int __init repair_env_string(char *param, char *val, const char *unused)
 }
 
 /* Anything after -- gets handed straight to init. */
-static int __init set_init_arg(char *param, char *val, const char *unused)
+static int __init set_init_arg(char *param, char *val,
+			       const char *unused, void *arg)
 {
 	unsigned int i;
 
 	if (panic_later)
 		return 0;
 
-	repair_env_string(param, val, unused);
+	repair_env_string(param, val, unused, NULL);
 
 	for (i = 0; argv_init[i]; i++) {
 		if (i == MAX_INIT_ARGS) {
@@ -468,9 +661,10 @@ static int __init set_init_arg(char *param, char *val, const char *unused)
  * Unknown boot options get handed to init, unless they look like
  * unused parameters (modprobe will find them in /proc/cmdline).
  */
-static int __init unknown_bootoption(char *param, char *val, const char *unused)
+static int __init unknown_bootoption(char *param, char *val,
+				     const char *unused, void *arg)
 {
-	repair_env_string(param, val, unused);
+	repair_env_string(param, val, unused, NULL);
 
 	/* Handle obsolete-style parameters */
 	if (obsolete_checksetup(param))
@@ -611,7 +805,8 @@ static noinline void __init_refok rest_init(void)
 }
 
 /* Check for early params. */
-static int __init do_early_param(char *param, char *val, const char *unused)
+static int __init do_early_param(char *param, char *val,
+				 const char *unused, void *arg)
 {
 	const struct obs_kernel_param *p;
 
@@ -630,7 +825,8 @@ static int __init do_early_param(char *param, char *val, const char *unused)
 
 void __init parse_early_options(char *cmdline)
 {
-	parse_args("early options", cmdline, NULL, 0, 0, 0, do_early_param);
+	parse_args("early options", cmdline, NULL, 0, 0, 0, NULL,
+		   do_early_param);
 }
 
 /* Arch code calls this early on, or if not, just before other parsing. */
@@ -734,10 +930,10 @@ asmlinkage __visible void __init start_kernel(void)
 	after_dashes = parse_args("Booting kernel",
 				  static_command_line, __start___param,
 				  __stop___param - __start___param,
-				  -1, -1, &unknown_bootoption);
+				  -1, -1, NULL, &unknown_bootoption);
 	if (!IS_ERR_OR_NULL(after_dashes))
 		parse_args("Setting init args", after_dashes, NULL, 0, -1, -1,
-			   set_init_arg);
+			   NULL, set_init_arg);
 
 	jump_label_init();
 
@@ -768,6 +964,10 @@ asmlinkage __visible void __init start_kernel(void)
 		local_irq_disable();
 	idr_init_cache();
 	rcu_init();
+
+	/* trace_printk() and trace points may be used after this */
+	trace_init();
+
 	context_tracking_init();
 	radix_tree_init();
 	/* init some links before init_ISA_irqs() */
@@ -1042,7 +1242,7 @@ static void __init do_initcall_level(int level)
 		   initcall_command_line, __start___param,
 		   __stop___param - __start___param,
 		   level, level,
-		   &repair_env_string);
+		   NULL, &repair_env_string);
 
 	for (fn = initcall_levels[level]; fn < initcall_levels[level+1]; fn++)
 		do_one_initcall(*fn);
@@ -1059,17 +1259,17 @@ static void __init do_initcalls(void)
 //ASUS BSP++++
 static void setGpio64High(void)
 {
-	int ret = gpio_request(64,"GPIO64");
-	if(ret)
-		printk("setGpio64High : error to gpio_request\n");
-	else
-	    printk("setGpio64High : sus to gpio_request\n");
-	ret = gpio_direction_output(64,1);
-	if(ret)
-		printk("setGpio64High : error to gpio_direction_output\n");
-	else
+    int ret = gpio_request(64,"GPIO64");
+    if(ret)
+        printk("setGpio64High : error to gpio_request\n");
+    else
+        printk("setGpio64High : sus to gpio_request\n");
+    ret = gpio_direction_output(64,1);
+    if(ret)
+        printk("setGpio64High : error to gpio_direction_output\n");
+    else
         printk("setGpio64High : sus to gpio_direction_output\n");
-	gpio_set_value(64, 1); //Set high_level
+    gpio_set_value(64, 1); //Set high_level
 }
 //ASUS BSP++
 
@@ -1082,18 +1282,20 @@ static void setGpio64High(void)
  */
 static void __init do_basic_setup(void)
 {
-	cpuset_init_smp();
-	usermodehelper_init();
-	shmem_init();
-	driver_init();
-	init_irq_proc();
-	do_ctors();
-	usermodehelper_enable();
-	do_initcalls();
-	random_int_secret_init();
-	//ASUS BSP++++
-	setGpio64High();
-	//ASUS BSP++
+    cpuset_init_smp();
+    usermodehelper_init();
+    shmem_init();
+    driver_init();
+    init_irq_proc();
+    do_ctors();
+    usermodehelper_enable();
+    do_initcalls();
+    random_int_secret_init();
+    //ASUS BSP++++
+    if (asus_project_id == ASUS_ZS550KL) {
+        setGpio64High();
+    }
+    //ASUS BSP---
 }
 
 static void __init do_pre_smp_initcalls(void)
@@ -1139,6 +1341,28 @@ static int try_to_run_init_process(const char *init_filename)
 
 static noinline void __init kernel_init_freeable(void);
 
+#ifdef CONFIG_DEBUG_RODATA
+static bool rodata_enabled = true;
+static int __init set_debug_rodata(char *str)
+{
+	return strtobool(str, &rodata_enabled);
+}
+__setup("rodata=", set_debug_rodata);
+
+static void mark_readonly(void)
+{
+	if (rodata_enabled)
+		mark_rodata_ro();
+	else
+		pr_info("Kernel memory protection disabled.\n");
+}
+#else
+static inline void mark_readonly(void)
+{
+	pr_warn("This architecture does not have kernel memory protection.\n");
+}
+#endif
+
 static int __ref kernel_init(void *unused)
 {
 	int ret;
@@ -1147,7 +1371,7 @@ static int __ref kernel_init(void *unused)
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
 	free_initmem();
-	mark_rodata_ro();
+	mark_readonly();
 	system_state = SYSTEM_RUNNING;
 	numa_default_policy();
 

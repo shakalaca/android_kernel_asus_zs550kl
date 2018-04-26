@@ -8,7 +8,7 @@
 #include "show_log.h"
 
 /* Log status */
-static bool DEBUG_CDEB = false;	/* Major debug log */
+static bool DEBUG_CDEB = true;	/* Major debug log */
 static bool DEBUG_DBG = false;	/* General debug log */
 static bool DEBUG_REG = false;	/* I2C register debug log */
 static bool DEBUG_API = false;	/* API debug log */
@@ -133,7 +133,7 @@ ssize_t Laser_Focus_log_contorl(const char __user *num, size_t len){
 	ctrl = (int)simple_strtol(messages, NULL, 10);
 
 	LOG_Handler(LOG_DBG, "%s command : %d\n", __func__, ctrl);
-	pr_err("[8953_laser], command : %d\n",ctrl);
+	//pr_err("[8953_laser], command : %d\n",ctrl);
 	switch(ctrl){
 		case ALL_ENABLE:
 			/* Enable All debug log */
@@ -155,7 +155,7 @@ ssize_t Laser_Focus_log_contorl(const char __user *num, size_t len){
 			break;
 		case CDBG_ENABLE:
 			/* Enable Major debug log */
-			pr_err("[8953_laser], DEBUG_CDEB = true!\n");
+			//pr_err("[8953_laser], DEBUG_CDEB = true!\n");
 			DEBUG_CDEB = true;
 			break;
 		case CDBG_DISABLE:

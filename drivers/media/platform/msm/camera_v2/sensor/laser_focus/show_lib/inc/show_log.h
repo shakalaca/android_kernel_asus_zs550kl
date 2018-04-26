@@ -14,7 +14,7 @@
 #include <linux/slab.h>
 
 /* Log tag */
-#define TAG "8953_laser"
+#define TAG "sz_cam_laser"
 
 /* Debug log flag */
 #define DEBUG_LOG_FLAG 0

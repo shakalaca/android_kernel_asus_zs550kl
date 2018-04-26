@@ -17,15 +17,13 @@
 #include "msm_camera_i2c_mux.h"
 #include <linux/regulator/rpm-smd-regulator.h>
 #include <linux/regulator/consumer.h>
-
 #include "../fac_camera.h"
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
-int isBackCamPowerup=0; //ASUS_BSP PJ_Ma+++
-
-static struct msm_sensor_ctrl_t *g_main_ctrl=NULL;	//ASUS_BSP Stimber_Hsueh
+static struct msm_camera_i2c_fn_t msm_sensor_cci_func_tbl;
+static struct msm_camera_i2c_fn_t msm_sensor_secure_func_tbl;
 
 static void msm_sensor_adjust_mclk(struct msm_camera_power_ctrl_t *ctrl)
 {
@@ -97,13 +95,28 @@ int32_t msm_sensor_free_sensor_data(struct msm_sensor_ctrl_t *s_ctrl)
 	kfree(s_ctrl->sensordata->power_info.power_down_setting);
 	kfree(s_ctrl->sensordata->csi_lane_params);
 	kfree(s_ctrl->sensordata->sensor_info);
-	msm_camera_put_clk_info(s_ctrl->pdev,
-		&s_ctrl->sensordata->power_info.clk_info,
-		&s_ctrl->sensordata->power_info.clk_ptr,
-		s_ctrl->sensordata->power_info.clk_info_size);
+	if (s_ctrl->sensor_device_type == MSM_CAMERA_I2C_DEVICE) {
+		msm_camera_i2c_dev_put_clk_info(
+			&s_ctrl->sensor_i2c_client->client->dev,
+			&s_ctrl->sensordata->power_info.clk_info,
+			&s_ctrl->sensordata->power_info.clk_ptr,
+			s_ctrl->sensordata->power_info.clk_info_size);
+	} else {
+		msm_camera_put_clk_info(s_ctrl->pdev,
+			&s_ctrl->sensordata->power_info.clk_info,
+			&s_ctrl->sensordata->power_info.clk_ptr,
+			s_ctrl->sensordata->power_info.clk_info_size);
+	}
+
 	kfree(s_ctrl->sensordata);
 	return 0;
 }
+//asus bsp ralf:for optimize hades ER power consumption>>
+extern int rkpreisp_power_on_dsp(void);
+extern int rkpreisp_power_off_dsp(void);
+extern int asus_hw_id;
+extern int asus_project_id;
+//asus bsp ralf:for optimize hades ER power consumption<<
 
 int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 {
@@ -112,8 +125,7 @@ int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_i2c_client *sensor_i2c_client;
 	int rc = 0; //ASUS_BSP PJ_Ma+++
 
-	//pr_err("%s : E\n", __func__); //ASUS_BSP PJ_Ma+++
-
+	CDBG("%s : E\n", __func__); //ASUS_BSP PJ_Ma+++
 	if (!s_ctrl) {
 		pr_err("%s:%d failed: s_ctrl %pK\n",
 			__func__, __LINE__, s_ctrl);
@@ -132,12 +144,24 @@ int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 			__func__, __LINE__, power_info, sensor_i2c_client);
 		return -EINVAL;
 	}
-	//ASUS_BSP PJ_Ma+++
-	isBackCamPowerup=0;
+
+	/* Power down secure session if it exist*/
+	if (s_ctrl->is_secure)
+		msm_camera_tz_i2c_power_down(sensor_i2c_client);
+
+	//asus bsp ralf:for optimize hades ER power consumption>>
+	/*
+	if(asus_project_id==ASUS_ZE553KL  &&  asus_hw_id >= ASUS_ER)
+	{
+		if(rkpreisp_power_off_dsp()<0)
+			printk("%s preisp power off failed\n",__func__);
+	}
+	*/
+	//asus bsp ralf:for optimize hades ER power consumption<<
 	rc = msm_camera_power_down(power_info, sensor_device_type,
 		sensor_i2c_client);
 
-	//pr_err("%s : rc=(%d) X\n", __func__, rc);
+	CDBG("%s : rc=(%d) X\n", __func__, rc);
 	return rc;
 	//ASUS_BSP PJ_Ma---
 }
@@ -150,9 +174,8 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_slave_info *slave_info;
 	const char *sensor_name;
 	uint32_t retry = 0;
-	
-	//pr_err("%s : E\n", __func__); //ASUS_BSP PJ_Ma+++
 
+	CDBG("%s : E\n", __func__); //ASUS_BSP PJ_Ma+++
 	if (!s_ctrl) {
 		pr_err("%s:%d failed: %pK\n",
 			__func__, __LINE__, s_ctrl);
@@ -174,11 +197,39 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			sensor_i2c_client, slave_info, sensor_name);
 		return -EINVAL;
 	}
-
+	//asus bsp ralf:for optimize hades ER power consumption>>
+	/*
+	if(asus_project_id==ASUS_ZE553KL  &&  asus_hw_id >= ASUS_ER)
+	{
+		if(rkpreisp_power_on_dsp()<0)
+			printk("%s preisp power on failed\n",__func__);
+	}
+	*/
+	//asus bsp ralf:for optimize hades ER power consumption<<
 	if (s_ctrl->set_mclk_23880000)
 		msm_sensor_adjust_mclk(power_info);
 
+	CDBG("Sensor %d tagged as %s\n", s_ctrl->id,
+		(s_ctrl->is_secure)?"SECURE":"NON-SECURE");
+
 	for (retry = 0; retry < 3; retry++) {
+		if (s_ctrl->is_secure) {
+			rc = msm_camera_tz_i2c_power_up(sensor_i2c_client);
+			if (rc < 0) {
+#ifdef CONFIG_MSM_SEC_CCI_DEBUG
+				CDBG("Secure Sensor %d use cci\n", s_ctrl->id);
+				/* session is not secure */
+				s_ctrl->sensor_i2c_client->i2c_func_tbl =
+					&msm_sensor_cci_func_tbl;
+#else  /* CONFIG_MSM_SEC_CCI_DEBUG */
+				return rc;
+#endif /* CONFIG_MSM_SEC_CCI_DEBUG */
+			} else {
+				/* session is secure */
+				s_ctrl->sensor_i2c_client->i2c_func_tbl =
+					&msm_sensor_secure_func_tbl;
+			}
+		}
 		rc = msm_camera_power_up(power_info, s_ctrl->sensor_device_type,
 			sensor_i2c_client);
 		if (rc < 0)
@@ -193,15 +244,8 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			break;
 		}
 	}
-	
-	if(rc==0){
-		if(s_ctrl->id == 0){
-			g_main_ctrl = s_ctrl;
-			isBackCamPowerup=1;
-		}
-	}
-	//pr_err("%s : rc=(%d) X\n", __func__, rc); //ASUS_BSP PJ_Ma+++
 
+	CDBG("%s : rc=(%d) X\n", __func__, rc); //ASUS_BSP PJ_Ma+++
 	return rc;
 }
 
@@ -256,7 +300,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 		return rc;
 	}
 
-	pr_err("%s: read id: 0x%x expected id 0x%x:\n",
+	CDBG("%s: read id: 0x%x expected id 0x%x:\n",
 			__func__, chipid, slave_info->sensor_id);
 	if (msm_sensor_id_by_mask(s_ctrl, chipid) != slave_info->sensor_id) {
 		pr_err("%s chip id %x does not match %x\n",
@@ -373,8 +417,8 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 	int32_t rc = 0;
 	int32_t i = 0;
 	mutex_lock(s_ctrl->msm_sensor_mutex);
-	CDBG("%s:%d %s cfgtype = %d\n", __func__, __LINE__,
-		s_ctrl->sensordata->sensor_name, cdata->cfgtype);
+	//CDBG("%s:%d %s cfgtype = %d\n", __func__, __LINE__,
+	//	s_ctrl->sensordata->sensor_name, cdata->cfgtype);
 	switch (cdata->cfgtype) {
 	case CFG_GET_SENSOR_INFO:
 		memcpy(cdata->cfg.sensor_info.sensor_name,
@@ -798,6 +842,7 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		} else {
 			rc = -EFAULT;
 		}
+		//clear_proc_pdaf_info();
 		break;
 	case CFG_SET_STOP_STREAM_SETTING: {
 		struct msm_camera_i2c_reg_setting32 stop_setting32;
@@ -882,12 +927,6 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 		break;
 	}
-	//ASUS_BSP PJ_Ma+++
-	case CFG_SET_STOP_STREAM:
-			pr_err("%s : CFG_SET_STOP_STREAM\n", __func__);
-			usleep_range(48000, 49000);
-		break;
-	//ASUS_BSP PJ_Ma---
 
 	default:
 		rc = -EFAULT;
@@ -1370,12 +1409,6 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 		}
 		break;
 	}
-	//ASUS_BSP PJ_Ma+++
-	case CFG_SET_STOP_STREAM:
-			pr_err("%s : CFG_SET_STOP_STREAM\n", __func__);
-			usleep_range(48000, 49000);
-		break;
-	//ASUS_BSP PJ_Ma---
 
 	default:
 		rc = -EFAULT;
@@ -1480,6 +1513,21 @@ static struct msm_camera_i2c_fn_t msm_sensor_qup_func_tbl = {
 	.i2c_write_table_sync_block = msm_camera_qup_i2c_write_table,
 };
 
+static struct msm_camera_i2c_fn_t msm_sensor_secure_func_tbl = {
+	.i2c_read = msm_camera_tz_i2c_read,
+	.i2c_read_seq = msm_camera_tz_i2c_read_seq,
+	.i2c_write = msm_camera_tz_i2c_write,
+	.i2c_write_table = msm_camera_tz_i2c_write_table,
+	.i2c_write_seq_table = msm_camera_tz_i2c_write_seq_table,
+	.i2c_write_table_w_microdelay =
+		msm_camera_tz_i2c_write_table_w_microdelay,
+	.i2c_util = msm_sensor_tz_i2c_util,
+	.i2c_write_conf_tbl = msm_camera_tz_i2c_write_conf_tbl,
+	.i2c_write_table_async = msm_camera_tz_i2c_write_table_async,
+	.i2c_write_table_sync = msm_camera_tz_i2c_write_table_sync,
+	.i2c_write_table_sync_block = msm_camera_tz_i2c_write_table_sync_block,
+};
+
 int32_t msm_sensor_init_default_params(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	struct msm_camera_cci_client *cci_client = NULL;
@@ -1513,6 +1561,9 @@ int32_t msm_sensor_init_default_params(struct msm_sensor_ctrl_t *s_ctrl)
 		/* Get CCI subdev */
 		cci_client->cci_subdev = msm_cci_get_subdev();
 
+		if (s_ctrl->is_secure)
+			msm_camera_tz_i2c_register_sensor((void *)s_ctrl);
+
 		/* Update CCI / I2C function table */
 		if (!s_ctrl->sensor_i2c_client->i2c_func_tbl)
 			s_ctrl->sensor_i2c_client->i2c_func_tbl =
@@ -1542,55 +1593,3 @@ int32_t msm_sensor_init_default_params(struct msm_sensor_ctrl_t *s_ctrl)
 	return 0;
 }
 
-#include <linux/time.h>
-
-//ASUS_BSP Stimber_Hsueh +++
-int sensor_read_temp(uint16_t *tmp)
-{
-	struct msm_camera_i2c_client *sensor_i2c_client;
-	int rc = 0;
-	static uint16_t temp=0;
-
-	struct timeval tv_now;
-	static struct timeval tv_prv;
-	unsigned long long val;
-
-	if(g_main_ctrl != NULL){
-		mutex_lock(g_main_ctrl->msm_sensor_mutex);
-		if(isBackCamPowerup==1){
-			sensor_i2c_client = g_main_ctrl->sensor_i2c_client;
-			if(sensor_i2c_client != NULL){
-				do_gettimeofday(&tv_now);
-				val = (tv_now.tv_sec*1000000000LL+tv_now.tv_usec*1000)-(tv_prv.tv_sec*1000000000LL+tv_prv.tv_usec*1000);
-
-				if(val/1000000000LL >= 1){
-					rc = sensor_i2c_client->i2c_func_tbl->i2c_read(
-						sensor_i2c_client, 0x013a, &temp, MSM_CAMERA_I2C_BYTE_DATA);
-					if (rc < 0) {
-						temp = 0;
-						pr_err("Stimber %s: read reg failed\n", __func__);
-						mutex_unlock(g_main_ctrl->msm_sensor_mutex);
-						return rc;
-					}else{
-						tv_prv.tv_sec = tv_now.tv_sec;
-						tv_prv.tv_usec = tv_now.tv_usec;
-					}
-
-				}else{
-					pr_err("temperature : cached (%d) val=%lld\n", temp, val);
-				}
-				
-			}
-		}else{
-			pr_err("No temperature1!\n");
-			temp = 0;
-		}
-		mutex_unlock(g_main_ctrl->msm_sensor_mutex);
-	}else{
-		pr_err("No temperature2!\n");
-		temp = 0;
-	}
-	*tmp = temp;
-	
-	return rc;
-}

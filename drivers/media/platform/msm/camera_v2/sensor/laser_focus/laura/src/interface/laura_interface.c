@@ -176,7 +176,7 @@ int	Olivia_Do_TOF_and_Calibration(struct msm_laser_focus_ctrl_t *dev_t, enum lau
 	status = Olivia_device_tof_configuration_interface(dev_t, cal_type);
 	if(status < 0)
 	{
-		pr_err("[8953_laser], Olivia_device_tof_configuration_interface return error %d\n",status);
+		LOG_Handler(LOG_ERR,"Olivia_device_tof_configuration_interface return error %d\n",status);
 		return status;
 	}
 	
@@ -184,7 +184,7 @@ int	Olivia_Do_TOF_and_Calibration(struct msm_laser_focus_ctrl_t *dev_t, enum lau
 	status = Laura_device_calibration(dev_t, cal_data);
 	if(status < 0)
 	{
-		pr_err("[8953_laser], Laura_device_calibration return error %d\n",status);
+		LOG_Handler(LOG_ERR,"Laura_device_calibration return error %d\n",status);
 		return status;
 	}
 
@@ -306,7 +306,7 @@ int Laura_device_read_range_interface(struct msm_laser_focus_ctrl_t *dev_t, bool
 	/* Power up initialization */
 	status = Laura_device_wake_up_interface(dev_t, load_cal, calibration_flag);
 	if(status < 0){
-		pr_err("[8953_laser], Laura_device_wake_up_interface failed, return %d\n",status);
+		LOG_Handler(LOG_ERR,"Laura_device_wake_up_interface failed, return %d\n",status);
 		Laura_MCPU_Controller(dev_t, MCPU_STANDBY);
 		return status;
 	}
@@ -314,7 +314,7 @@ int Laura_device_read_range_interface(struct msm_laser_focus_ctrl_t *dev_t, bool
 	/* Set TOF configuration */
 	status = Olivia_device_tof_configuration_interface(dev_t, MSM_LASER_FOCUS_APPLY_NORMAL_CALIBRATION);
 	if(status < 0){
-		pr_err("[8953_laser], Olivia_device_tof_configuration_interface failed, return %d\n",status);
+		LOG_Handler(LOG_ERR,"Olivia_device_tof_configuration_interface failed, return %d\n",status);
 		Laura_MCPU_Controller(dev_t, MCPU_STANDBY);
 		return status;
 	}
@@ -323,7 +323,7 @@ int Laura_device_read_range_interface(struct msm_laser_focus_ctrl_t *dev_t, bool
 	//status = Laura_device_read_range(dev_t);
 	status = Olivia_device_read_range(dev_t);	
 	if(status < 0){
-		pr_err("[8953_laser], Olivia_device_read_range failed, return %d\n",status);
+		LOG_Handler(LOG_ERR,"Olivia_device_read_range failed, return %d\n",status);
 		Laura_MCPU_Controller(dev_t, MCPU_STANDBY);
 		return status;
 	}

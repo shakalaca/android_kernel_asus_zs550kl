@@ -458,13 +458,13 @@ int Olivia_get_calibration_input(struct seq_file *buf, void *v,
 
 
 	for(i=0; i<CAL_MSG_LEN*2 ;i++)
-		seq_printf(buf, "%u ", cal_data_10[i]);
+		seq_printf(buf, "%d ", cal_data_10[i]);
 	for(i=0; i<CAL_MSG_LEN*2 ;i++)
-		seq_printf(buf, "%u ", cal_data_40[i]);
+		seq_printf(buf, "%d ", cal_data_40[i]);
 	for(i=0; i<CAL_MSG_F0 ;i++)
-		seq_printf(buf, "%u ", cal_data_f0[i]);
+		seq_printf(buf, "%d ", cal_data_f0[i]);
 	for(i=0; i<CAL_CONFIDENCE_LEN ;i++)
-	   seq_printf(buf, "%u ", ConfPoint[i]);
+	   seq_printf(buf, "%d ", ConfPoint[i]);
 	seq_printf(buf, "\n");
 	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
 	return 0;

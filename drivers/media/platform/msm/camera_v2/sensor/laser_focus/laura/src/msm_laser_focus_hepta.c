@@ -69,8 +69,8 @@ struct delayed_work	measure_work;
 bool measure_thread_run = false;
 bool measure_cached_range_updated = false;
 
-int proc_read_value_cnt = 0;
-int ioctrl_read_value_cnt = 0;
+unsigned int proc_read_value_cnt = 0;
+unsigned int ioctrl_read_value_cnt = 0;
 struct msm_laser_focus_ctrl_t *get_laura_ctrl(void){
 	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
 	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
@@ -84,7 +84,7 @@ bool OLI_device_invalid(void){
 
 static void start_continuous_measure_work(void)
 {
-	int wait_count = 0;
+	//int wait_count = 0;
 	if(!measure_thread_run)
 	{
 		Disable_Device = false;
@@ -93,11 +93,12 @@ static void start_continuous_measure_work(void)
 		schedule_delayed_work(&measure_work, 0);
 		measure_thread_run = true;
 
+#if 0
 		while(!measure_cached_range_updated)
 		{
 			usleep_range(2000,2001);
 			wait_count++;
-			if(wait_count>100)
+			if(wait_count>200)
 			{
 				LOG_Handler(LOG_ERR,"%s(), laser power up start time out?! not wait\n",__func__);
 				break;
@@ -105,6 +106,7 @@ static void start_continuous_measure_work(void)
 		}
 		if(measure_cached_range_updated)
 			LOG_Handler(LOG_ERR,"%s(), measure get first result, start measure work done!\n",__func__);
+#endif
 	}
 	else
 	{
@@ -116,7 +118,7 @@ void continuous_measure_thread_func(struct work_struct *work)
 {
 	int status = 0;
 
-	if(continuous_measure)
+	if(continuous_measure && laura_t->device_state != MSM_LASER_FOCUS_DEVICE_OFF && laura_t->device_state != MSM_LASER_FOCUS_DEVICE_DEINIT_CCI)
 	{
 		do{
 			status = Laura_device_read_range_interface(laura_t, load_calibration_data, &calibration_flag);
@@ -157,6 +159,49 @@ void continuous_measure_thread_func(struct work_struct *work)
 	LOG_Handler(LOG_ERR,"measure thread func exit\n");
 }
 
+static int Laser_GPIO_High(struct msm_laser_focus_ctrl_t *dev_t)
+{
+	int rc = 0;
+	enum msm_sensor_power_seq_gpio_t gpio;
+
+	if(dev_t->sensordata->power_info.gpio_conf && dev_t->sensordata->power_info.gpio_conf->cam_gpio_req_tbl_size>0)
+	{
+		GPIO_Handler(dev_t,0,GPIO_ENABLE);
+
+		for (gpio = SENSOR_GPIO_AF_PWDM; gpio < SENSOR_GPIO_MAX;gpio++)
+		{
+			if (dev_t->sensordata->power_info.gpio_conf->gpio_num_info &&
+				dev_t->sensordata->power_info.gpio_conf->gpio_num_info->valid[gpio] == 1)
+			{
+
+				rc = GPIO_Handler(dev_t,gpio,GPIO_HIGH);
+			}
+		}
+	}
+
+	return rc;
+}
+
+static int Laser_GPIO_Low(struct msm_laser_focus_ctrl_t *dev_t)
+{
+	int rc = 0;
+	enum msm_sensor_power_seq_gpio_t gpio;
+
+	if(dev_t->sensordata->power_info.gpio_conf && dev_t->sensordata->power_info.gpio_conf->cam_gpio_req_tbl_size>0)
+	{
+		for (gpio = SENSOR_GPIO_AF_PWDM; gpio < SENSOR_GPIO_MAX;gpio++)
+		{
+			if (dev_t->sensordata->power_info.gpio_conf->gpio_num_info &&
+				dev_t->sensordata->power_info.gpio_conf->gpio_num_info->valid[gpio] == 1)
+			{
+				rc = GPIO_Handler(dev_t,gpio,GPIO_LOW);
+			}
+		}
+		GPIO_Handler(dev_t,0,GPIO_DISABLE);
+	}
+
+	return rc;
+}
 int Laser_Disable(enum msm_laser_focus_atd_device_trun_on_type val){
 
 		int rc=0;
@@ -204,8 +249,17 @@ int Laser_Disable(enum msm_laser_focus_atd_device_trun_on_type val){
 			}
 			measure_cached_range_updated = false;
 		}
+
+		rc = WaitMCPUStandby(laura_t);
 		rc = dev_deinit(laura_t);
 		power_down(laura_t);
+
+		if(!camera_on_flag)
+		{
+			LOG_Handler(LOG_CDBG, "%s: Laser Solo Down, GPIO pull DOWN\n ", __func__);
+			Laser_GPIO_Low(laura_t);
+		}
+
 		laura_t->device_state = val;
 		load_calibration_data=false;
 		mutex_ctrl(laura_t, MUTEX_UNLOCK);
@@ -213,9 +267,20 @@ int Laser_Disable(enum msm_laser_focus_atd_device_trun_on_type val){
 		return rc;
 }
 
+#ifdef ZE553KL
+extern uint8_t g_ois_i2c_block_other;
+#endif
+
 int Laser_Enable(enum msm_laser_focus_atd_device_trun_on_type val){
 
 		int rc=0;
+#ifdef ZE553KL
+		if(g_ois_i2c_block_other)
+		{
+			LOG_Handler(LOG_CDBG, "%s: OIS Block I2C, not open laser\n ", __func__);
+			return -1;
+		}
+#endif
 		mutex_ctrl(laura_t, MUTEX_LOCK);
 		client++;
 		if(client>1)
@@ -237,6 +302,12 @@ int Laser_Enable(enum msm_laser_focus_atd_device_trun_on_type val){
 			laura_t->device_state = MSM_LASER_FOCUS_DEVICE_OFF;
 		}
 
+		if(!camera_on_flag)
+		{
+			LOG_Handler(LOG_CDBG, "%s: Laser Solo On, GPIO pull HIGH\n ", __func__);
+			Laser_GPIO_High(laura_t);
+		}
+
 		rc = !power_up(laura_t) && dev_init(laura_t);
 		if(rc)
 		{
@@ -249,15 +320,27 @@ int Laser_Enable(enum msm_laser_focus_atd_device_trun_on_type val){
 		else
 			rc = Laura_device_power_up_init_interface(laura_t, NO_CAL, &calibration_flag);
 
-		laura_t->device_state = val;
-		load_calibration_data = (val == MSM_LASER_FOCUS_DEVICE_APPLY_CALIBRATION?true:false);
-
-		if(continuous_measure)
+		if(rc == 0)
 		{
-			start_continuous_measure_work();
+			laura_t->device_state = val;
+			load_calibration_data = (val == MSM_LASER_FOCUS_DEVICE_APPLY_CALIBRATION?true:false);
+
+			if(continuous_measure)
+			{
+				start_continuous_measure_work();
+			}
+		}
+		else
+		{
+			client --;
+			dev_deinit(laura_t);
+			power_down(laura_t);
+			if(!camera_on_flag)
+				Laser_GPIO_Low(laura_t);
 		}
 		mutex_ctrl(laura_t, MUTEX_UNLOCK);
-		LOG_Handler(LOG_CDBG, "%s Init Device (%d) X\n", __func__, laura_t->device_state);
+		LOG_Handler(LOG_CDBG, "%s Init Device (%d), rc %d X\n", __func__, laura_t->device_state,rc);
+
 		return rc;
 }
 void HPTG_Customize(struct HPTG_settings* Setting){
@@ -403,6 +486,7 @@ static ssize_t ATD_Laura_device_enable_write(struct file *filp, const char __use
 				Laser_Disable(MSM_LASER_FOCUS_DEVICE_OFF);//force disable laser
 			}
 			HPTG_Customize(HPTG_t);
+
 			rc = Laser_Enable(val);
 			if (rc < 0)
 				goto DEVICE_TURN_ON_ERROR;				
@@ -456,13 +540,13 @@ static void test_log_time(int count)
 
 	for(i=0;i<count;i++)
 	{
-		LOG_Handler(LOG_DBG,"[8953_laser], test log %dth log!\n",i);
+		LOG_Handler(LOG_CDBG,"test log %dth log!\n",i);
 	}
 
 
 	do_gettimeofday(&t2);
 
-	LOG_Handler(LOG_DBG,"[8953_laser], print %d logs cost %lu us\n",count,diff_time_us(&t2,&t1));
+	LOG_Handler(LOG_CDBG,"print %d logs cost %lu us\n",count,diff_time_us(&t2,&t1));
 }
 
 static int ATD_Laura_device_enable_read(struct seq_file *buf, void *v){
@@ -514,9 +598,10 @@ static int ATD_Laura_device_get_range_read(struct seq_file *buf, void *v)
 	}
 
 	proc_read_value_cnt++;
-
 	if(!continuous_measure)
+	{
 		Range = Laura_device_read_range_interface(laura_t, load_calibration_data, &calibration_flag);
+	}
 	else
 		Range = Range_Cached;
 
@@ -529,14 +614,11 @@ static int ATD_Laura_device_get_range_read(struct seq_file *buf, void *v)
 		LOG_Handler(LOG_ERR, "%s: Read_range(%d) failed\n", __func__, Range);
 		Range = -9999;
 	}
-
-	if((count%50) == 0){
-		LOG_Handler(LOG_CDBG, "%s : Get range (%d)  Device (%d)\n", __func__, Range , laura_t->device_state);
-	}
-
+#ifdef ASUS_FACTORY_BUILD
+	LOG_Handler(LOG_CDBG, "%s : Get range (%d)  Device (%d)\n", __func__, Range , laura_t->device_state);
+#endif
 	seq_printf(buf, "%d\n", Range);
-	if(proc_read_value_cnt > 1000)
-		proc_read_value_cnt=0;
+
 	mutex_ctrl(laura_t, MUTEX_UNLOCK);
 #if 0
 	now = get_current_time();
@@ -587,9 +669,12 @@ static int ATD_Laura_device_get_range_read_more_info(struct seq_file *buf, void 
 		mutex_ctrl(laura_t, MUTEX_UNLOCK);
 		return 0;
 	}
+
 	proc_read_value_cnt++;
 	if(!continuous_measure)
+	{
 		RawRange = (int) Laura_device_read_range_interface(laura_t, load_calibration_data, &calibration_flag);
+	}
 	else
 		RawRange = Range_Cached;
 
@@ -602,16 +687,10 @@ static int ATD_Laura_device_get_range_read_more_info(struct seq_file *buf, void 
 		LOG_Handler(LOG_ERR, "%s: Read_range(%d) failed\n", __func__, RawRange);
 		RawRange = -9999;
 	}
-	//LOG_Handler(LOG_CDBG, "%s : Get range (%d)  Device (%d)\n", __func__, RawRange , laura_t->device_state);
-
-	if((count%50) == 0){
-		LOG_Handler(LOG_CDBG, "%s : Get range (%d)  Device (%d)\n", __func__, RawRange , laura_t->device_state);
-	}
-
+#ifdef ASUS_FACTORY_BUILD
+	LOG_Handler(LOG_CDBG, "%s : Get range (%d)  Device (%d)\n", __func__, RawRange , laura_t->device_state);
+#endif
 	seq_printf(buf, "%d#%d#%d\n", RawRange, DMax, ErrCode);
-
-	if(proc_read_value_cnt > 1000)
-		proc_read_value_cnt=0;
 
 	mutex_ctrl(laura_t, MUTEX_UNLOCK);
 
@@ -893,6 +972,7 @@ static const struct file_operations dump_laser_focus_debug_register_fops = {
 static int Laura_laser_focus_enforce_read(struct seq_file *buf, void *v)
 {
 	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	seq_printf(buf,"%d\n",laser_focus_enforce_ctrl);
 	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
 	return 0;
 }
@@ -903,7 +983,12 @@ static int Laura_laser_focus_enforce_open(struct inode *inode, struct file *file
 	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
 	return single_open(file, Laura_laser_focus_enforce_read, NULL);
 }
-
+void Laser_set_enforce_value(uint32_t value)
+{
+	mutex_ctrl(laura_t, MUTEX_LOCK);
+	laser_focus_enforce_ctrl = value;
+	mutex_ctrl(laura_t, MUTEX_UNLOCK);
+}
 static ssize_t Laura_laser_focus_enforce_write(struct file *filp, const char __user *buff, size_t len, loff_t *data)
 {
 	ssize_t rc;
@@ -1046,7 +1131,7 @@ static int measure_mode_open(struct inode *inode, struct  file *file)
 	return single_open(file, measure_mode_read, NULL);
 }
 
-static void switch_measure_mode(int val)
+void Laser_switch_measure_mode(int val)
 {
 	mutex_ctrl(laura_t, MUTEX_LOCK);
 
@@ -1098,11 +1183,11 @@ static ssize_t measure_mode_write(struct file *filp, const char __user *buff, si
 
 	switch (val) {
 		case 0:
-			switch_measure_mode(0);
+			Laser_switch_measure_mode(0);
 			LOG_Handler(LOG_DBG, "continuous_measure changed to 0\n");
 			break;
 		case 1:
-			switch_measure_mode(1);
+			Laser_switch_measure_mode(1);
 			LOG_Handler(LOG_DBG, "continuous_measure changed to 1\n");
 			break;
 		default:
@@ -1677,10 +1762,12 @@ int Olivia_get_measure(int* distance){
 
 static int Olivia_misc_open(struct inode *inode, struct file *file)
 {
-	HPTG_Customize(HPTG_t);
-	Laser_Enable(MSM_LASER_FOCUS_DEVICE_APPLY_CALIBRATION);
+	int rc;
+	//HPTG_Customize(HPTG_t);
 	camera_on_flag = true;
-	return 0;
+	rc = Laser_Enable(MSM_LASER_FOCUS_DEVICE_APPLY_CALIBRATION);
+	//LOG_Handler(LOG_CDBG, "Olivia_misc_open return %d",rc);
+	return rc;
 }
 
 static int Olivia_misc_release(struct inode *inode, struct file *file)
@@ -1704,8 +1791,6 @@ static long Olivia_misc_ioctl(struct file *file, unsigned int cmd, unsigned long
 		case ASUS_LASER_SENSOR_MEASURE:
 			ioctrl_read_value_cnt++;
 			Olivia_get_measure(&distance);
-			if(ioctrl_read_value_cnt >= LOG_SAMPLE_RATE)
-				ioctrl_read_value_cnt = 0;
 			//__put_user(dist, (int* __user*)arg);
 			dist[0] = distance;
 			dist[1] = ErrCode;
@@ -1770,7 +1855,7 @@ static void Olivia_Create_proc(void)
 	proc(DEVICE_GET_VALUE_MORE_INFO, 0664, &ATD_laser_focus_device_get_range_more_info_fos);
 
 if(Laser_Product == PRODUCT_OLIVIA){
-	LOG_Handler(LOG_DBG,"[8953_laser], OLIVIA create calibration fops");
+	LOG_Handler(LOG_DBG,"OLIVIA create calibration fops");
 	proc(DEVICE_SET_CALIBRATION, 0664, &ATD_olivia_calibration_fops);
 	proc(DEVICE_GET_CALIBRATION_INPUT_DATA, 0664, &ATD_Olivia_get_calibration_input_data_fops);
 }
@@ -1781,7 +1866,7 @@ else{
 	
 	proc(DEVICE_DUMP_REGISTER_VALUE, 0664, &dump_laser_focus_register_fops);
 	proc(DEVICE_DUMP_DEBUG_VALUE, 0664, &dump_laser_focus_debug_register_fops);
-	//proc(DEVICE_ENFORCE_FILE, 0664, &laser_focus_enforce_fops);
+	proc(DEVICE_ENFORCE_FILE, 0664, &laser_focus_enforce_fops);
 	proc(DEVICE_LOG_CTRL_FILE, 0664, &laser_focus_log_contorl_fops);
 
 	proc(DEVICE_CALIBRATION_UPDATED, 0664, &need_load_calibration_fops);
@@ -2013,8 +2098,8 @@ static int32_t Olivia_platform_probe(struct platform_device *pdev)
 	int32_t rc = 0;
 	//,gp_sdio_2_clk,ret;
 	//struct device_node *np = pdev->dev.of_node;
-	//LOG_Handler(LOG_CDBG, "%s: Probe Start\n", __func__);
-	LOG_Handler(LOG_DBG,"[8953_laser], Olivia_platform_probe Enter");
+	LOG_Handler(LOG_CDBG, "%s: Probe Start\n", __func__);
+	LOG_Handler(LOG_DBG,"Olivia_platform_probe Enter");
 /*
 	////
 	gp_sdio_2_clk = of_get_named_gpio(np, "gpios", 0);
@@ -2058,9 +2143,15 @@ static int32_t Olivia_platform_probe(struct platform_device *pdev)
 
 	HPTG_DataInit();
 
+	Laser_GPIO_High(laura_t);
+
 	/* Check I2C status */
 	if(dev_I2C_status_check(laura_t, MSM_CAMERA_I2C_WORD_DATA) == 0)
+	{
+		rc = -1;
+		Laser_GPIO_Low(laura_t);
 		goto probe_failure;
+	}
 
 	/* Init mutex */
     mutex_ctrl(laura_t, MUTEX_ALLOCATE);
@@ -2068,6 +2159,7 @@ static int32_t Olivia_platform_probe(struct platform_device *pdev)
 
 	Laura_Init_Chip_Status_On_Boot(laura_t);
 	
+	Laser_GPIO_Low(laura_t);
 
 	rc = Olivia_misc_register(Laser_Product);
 	if (rc < 0)
@@ -2077,13 +2169,13 @@ static int32_t Olivia_platform_probe(struct platform_device *pdev)
 	ATD_status = 1;
 
 	INIT_DELAYED_WORK(&measure_work, continuous_measure_thread_func);
-	LOG_Handler(LOG_DBG,"[8953_laser], Olivia_platform_probe Success");
+	LOG_Handler(LOG_DBG,"Olivia_platform_probe Success");
 	LOG_Handler(LOG_CDBG, "%s: Probe Success\n", __func__);
 	return 0;
 	
 probe_failure:
-	LOG_Handler(LOG_DBG,"[8953_laser], Olivia_platform_probe failed, rc = %d\n",rc);
-	LOG_Handler(LOG_CDBG, "%s: Probe failed, rc = %d\n", __func__, rc);
+	LOG_Handler(LOG_DBG,"Olivia_platform_probe failed, rc = %d\n",rc);
+	LOG_Handler(LOG_ERR, "%s: Probe failed, rc = %d\n", __func__, rc);
 	return rc;
 }
 
@@ -2215,11 +2307,11 @@ static int __init Laura_init_module(void)
 {
 	int32_t rc = 0;
 
-	LOG_Handler(LOG_DBG,"[8953_laser], Laura_init_module Enter");
+	LOG_Handler(LOG_DBG,"Laura_init_module Enter");
 	LOG_Handler(LOG_DBG, "%s: Enter\n", __func__);
 	rc = platform_driver_probe(&msm_laser_focus_platform_driver, Olivia_platform_probe);
 	LOG_Handler(LOG_DBG, "%s rc %d\n", __func__, rc);
-	LOG_Handler(LOG_DBG,"[8953_laser], Laura_init_module Exit");
+	LOG_Handler(LOG_DBG,"Laura_init_module Exit");
 
 	return rc;
 }
@@ -2232,7 +2324,7 @@ static void __exit Laura_driver_exit(void)
 	return;
 }
 
-module_init(Laura_init_module);
+late_initcall(Laura_init_module);
 module_exit(Laura_driver_exit);
 MODULE_DESCRIPTION("MSM LASER_FOCUS");
 MODULE_LICENSE("GPL v2");

@@ -225,7 +225,6 @@ int sky81296_init(struct msm_flash_ctrl_t * fctrl)
 	CDBG(" E\n");
 	do
 	{
-		if(asus_project_id!=ASUS_ZD552KL)
 		{
 			printk("%s:%d invalid asus_project_id=%d \n",__func__,__LINE__,asus_project_id);
 			rc=-EFAULT;break;
@@ -276,7 +275,7 @@ int sky81296_init(struct msm_flash_ctrl_t * fctrl)
 		if (rc < 0)
 			{printk("%s:%d msm_flash_i2c_write_table failed\n",__func__,__LINE__);break;}
 		fctrl->flash_state = MSM_CAMERA_FLASH_INIT;
-		printk("%s:%d sky81296 init done.",__func__,__LINE__);
+		//printk("%s:%d sky81296 init done.",__func__,__LINE__);
 		rc=0;
 	}while(0);
 	
@@ -318,12 +317,14 @@ int sky81296_current_set_low(struct msm_flash_ctrl_t *fctrl, uint32_t intensity1
 	sky81296_reg_low_settings.reg_setting_a[1].reg_data|= intensity1>0?0x1:0;
 	sky81296_reg_low_settings.reg_setting_a[1].reg_data|= intensity2>0?0x10:0;
 
+	/*
 	for(i=0;i<sky81296_reg_low_settings.size;i++)
 	{
 		printk("%s %x=0x%x\n",__func__
 			,sky81296_reg_low_settings.reg_setting_a[i].reg_addr,sky81296_reg_low_settings.reg_setting_a[i].reg_data
 			);
 	}
+	*/
 	rc=msm_flash_i2c_write_table(fctrl,&sky81296_reg_low_settings);
 	if (rc < 0)
 	{printk("%s:%d msm_flash_i2c_write_table failed\n",__func__,__LINE__);}
@@ -341,7 +342,7 @@ int sky81296_current_set_high(struct msm_flash_ctrl_t *fctrl,
 	CDBG(" E\n");
 	for (i=0;i<2;i++) {
 		if(val[i]>uMaxCurrent)val[i]=uMaxCurrent;
-		printk("%s val[%d]=%d\n",__func__,i,val[i]);
+		//printk("%s val[%d]=%d\n",__func__,i,val[i]);
 		if(val[i]<250)
 			val[i]=0;
 		else
@@ -353,12 +354,14 @@ int sky81296_current_set_high(struct msm_flash_ctrl_t *fctrl,
 	sky81296_reg_high_settings.reg_setting_a[3].reg_data=0;
 	sky81296_reg_high_settings.reg_setting_a[3].reg_data|= intensity1>0?0x2:0;
 	sky81296_reg_high_settings.reg_setting_a[3].reg_data|= intensity2>0?0x20:0;
+	/*
 	for(i=0;i<sky81296_reg_high_settings.size;i++)
 	{
 		printk("%s %x=0x%x\n",__func__
 			,sky81296_reg_high_settings.reg_setting_a[i].reg_addr,sky81296_reg_high_settings.reg_setting_a[i].reg_data
 			);
 	}
+	*/
 	rc=msm_flash_i2c_write_table(fctrl,&sky81296_reg_high_settings);
 	if (rc < 0)
 	{printk("%s:%d msm_flash_i2c_write_table failed\n",__func__,__LINE__);}
@@ -368,7 +371,7 @@ int sky81296_current_set_high(struct msm_flash_ctrl_t *fctrl,
 
 void asus_flash_release(struct msm_flash_ctrl_t *fctrl )
 {
-	printk("%s:%d in flash_state=%d\n",__func__,__LINE__,fctrl->flash_state);
+	//printk("%s:%d in flash_state=%d\n",__func__,__LINE__,fctrl->flash_state);
 	if(fctrl->flash_driver_type==FLASH_DRIVER_I2C)
 		msm_flash_i2c_release(fctrl);
 	else
@@ -400,7 +403,7 @@ char* sky81296_dump_reg(struct msm_flash_ctrl_t *fctrl )
 					sprintf(temp,"\nreg[%02d]=0x%02x",i,data_buf[i]);
 					strcat(g_strBuffer,temp);
 				}
-			}	printk("%s %s \n",__func__,g_strBuffer);
+			}	//printk("%s %s \n",__func__,g_strBuffer);
 		}
 		asus_flash_release(fctrl);
 	}
@@ -432,6 +435,25 @@ static ssize_t asus_flash_show(struct file *dev, char *buffer, size_t count, lof
 	ret=simple_read_from_buffer(buffer,count,ppos,buff,desc);	
 	return ret;
 }
+#ifdef ZD552KL_PHOENIX
+static void set_ctrl_state(struct FAC_FLASH_INFO *facflash,struct msm_flash_cfg_data_t *flash_data)
+{
+	if(facflash->index == 2)
+	{
+		flash_data->ctrl_state = CTRL_FRONT_LED1_OFF_REAR_LED_ON_ON;
+		pr_info("sz_cam_flash, set ctrl state REAR LED to flash 0\n");
+	}
+	else if(facflash->index == 3)
+	{
+		flash_data->ctrl_state = CTRL_FRONT_LED1_ON_REAR_LED_OFF_OFF;
+		pr_info("sz_cam_flash, set ctrl state Front LED to flash 1\n");
+	}
+	else
+	{
+		pr_err("sz_cam_flash, not valid index %d for PMIC LED\n",facflash->index);
+	}
+}
+#endif
 void asus_update_config(struct FAC_FLASH_INFO *facflash,uint32_t mode)
 {
 	struct msm_flash_ctrl_t *fctrl=NULL;
@@ -441,9 +463,11 @@ void asus_update_config(struct FAC_FLASH_INFO *facflash,uint32_t mode)
 	fctrl=facflash->ctrl;
 	if(asus_flash_init(fctrl))
 	{
+		/*
 		printk("%s:%d [camera_flash] driver_type=%d,mode=%d,cur[0]=%d,cur[1]=%d\n"
 			,__func__,__LINE__,fctrl->flash_driver_type,mode
 			,fctrl->torch_op_current[0],fctrl->torch_op_current[1]);
+		*/
 		if(fctrl->flash_driver_type==FLASH_DRIVER_I2C)
 		{
 			if(mode==FAC_FLASH_MODE_TORCH)
@@ -454,13 +478,16 @@ void asus_update_config(struct FAC_FLASH_INFO *facflash,uint32_t mode)
 					sky81296_current_set_low(fctrl,fctrl->torch_op_current[0],fctrl->torch_op_current[1]);
 				
 			}
-			if(mode==FAC_FLASH_MODE_FLASH)
+			else if(mode==FAC_FLASH_MODE_FLASH)
 			{
 				sky81296_current_set_high(fctrl,fctrl->flash_op_current[0],fctrl->flash_op_current[1]);
 			}
 		}
 		else //if(fctrl->flash_driver_type==FLASH_DRIVER_PMIC)
 		{
+		#ifdef ZD552KL_PHOENIX
+			set_ctrl_state(facflash,&pmi8950_cfg_data);
+		#endif
 			if(mode==FAC_FLASH_MODE_TORCH)
 			{
 				if(fctrl->torch_op_current[0]==0  &&  fctrl->torch_op_current[1]==0)
@@ -478,7 +505,7 @@ void asus_update_config(struct FAC_FLASH_INFO *facflash,uint32_t mode)
 				}
 				
 			}
-			if(mode==FAC_FLASH_MODE_FLASH)
+			else if(mode==FAC_FLASH_MODE_FLASH)
 			{
 				pmi8950_cfg_data.flash_current[0]=fctrl->flash_op_current[0];
 				pmi8950_cfg_data.flash_current[1]=fctrl->flash_op_current[1];
@@ -492,6 +519,9 @@ void asus_flash_config(struct FAC_FLASH_INFO *facflash, uint32_t val0, uint32_t 
 {
 	uint32_t imax=0;
 	uint32_t icurr0=0,icurr1=0;
+#ifdef ZD552KL_PHOENIX
+	uint32_t imax2=0;//for dual test
+#endif
 	CDBG(" E\n");
 	if(!facflash  ||  !facflash->ctrl)
 	{
@@ -499,6 +529,7 @@ void asus_flash_config(struct FAC_FLASH_INFO *facflash, uint32_t val0, uint32_t 
 		return;
 	}
 	{
+		/*
 		printk("%s:%d project=%d,index=%d,target_index=%d,val0=%d,val1=%d,type=%d,mode=%d,is_otg_mode=%d\n",__func__,__LINE__
 			,asus_project_id,facflash->index
 			,facflash->target_index
@@ -506,12 +537,30 @@ void asus_flash_config(struct FAC_FLASH_INFO *facflash, uint32_t val0, uint32_t 
 			,facflash->ctrl->flash_driver_type
 			,mode,g_is_otg_mode
 			);
-		
+		*/
 		if(mode==FAC_FLASH_MODE_TORCH)
 		{
-			imax=asus_project_id==ASUS_ZD552KL?g_front_torch_max_current:g_rear_torch_max_current;
-			val0=val0<imax?val0:imax;
-			val1 =val1 <imax?val1:imax;
+			#ifdef ZD552KL_PHOENIX
+				imax = g_front_torch_max_current;
+				imax2 = g_rear_torch_max_current;
+				val0=val0<imax?val0:imax;
+				val1=val1<imax2?val1:imax2;
+				if(val0 && val1)
+				{
+					pr_info("sz_cam_flash, dual torch max (%d,%d)",imax,imax2);
+					pr_info("sz_cam_flash, set dual torch current (%d,%d)\n",val0,val1);
+				}
+				else
+				{
+					pr_info("sz_cam_flash, torch imax set to %d mA",imax);
+					pr_info("sz_cam_flash, set torch current (%d,%d) for flash %s\n",val0,val1,facflash->index==2?"Rear":"Front");
+				}
+			#else
+				imax=g_rear_torch_max_current;
+				val0=val0<imax?val0:imax;
+				val1=val1 <imax?val1:imax;
+			#endif
+
 			icurr0=facflash->ctrl->torch_op_current[0];
 			icurr1=facflash->ctrl->torch_op_current[1];
 			facflash->ctrl->torch_op_current[0]=val0;
@@ -524,18 +573,36 @@ void asus_flash_config(struct FAC_FLASH_INFO *facflash, uint32_t val0, uint32_t 
 			facflash->ctrl->torch_op_current[0]=icurr0;
 			facflash->ctrl->torch_op_current[1]=icurr1;
 		}
-		if(mode==FAC_FLASH_MODE_FLASH)
+		else if(mode==FAC_FLASH_MODE_FLASH)
 		{
-			imax=asus_project_id==ASUS_ZD552KL?g_front_flash_max_current:g_rear_flash_max_current;
-			val0=val0<imax?val0:imax;
-			val1 =val1 <imax?val1:imax;
-			icurr0=facflash->ctrl->torch_op_current[0];
-			icurr1=facflash->ctrl->torch_op_current[1];
+			#ifdef ZD552KL_PHOENIX
+				imax = g_front_flash_max_current;
+				imax2 = g_rear_flash_max_current;
+				val0=val0<imax?val0:imax;
+				val1=val1<imax2?val1:imax2;
+				if(val0 && val1)
+				{
+					pr_info("sz_cam_flash, dual flash max (%d,%d)",imax,imax2);
+					pr_info("sz_cam_flash, set dual flash flash current (%d,%d)",val0,val1);
+				}
+				else
+				{
+					pr_info("sz_cam_flash, flash imax set to %d mA",imax);
+					pr_info("sz_cam_flash, set flash current (%d,%d) for flash %s\n",val0,val1,facflash->index==2?"Rear":"Front");
+				}
+			#else
+				imax=g_rear_flash_max_current;
+				val0=val0<imax?val0:imax;
+				val1=val1<imax?val1:imax;
+			#endif
+
+			icurr0=facflash->ctrl->flash_op_current[0];
+			icurr1=facflash->ctrl->flash_op_current[1];
 			facflash->ctrl->flash_op_current[0]=val0;
 			facflash->ctrl->flash_op_current[1]=val1;
 			facflash->flash_op_current=facflash->ctrl->flash_op_current\
 				[facflash->target_index];
-			g_facflash[facflash->index^1].torch_op_current=facflash->ctrl->torch_op_current\
+			g_facflash[facflash->index^1].flash_op_current=facflash->ctrl->flash_op_current\
 				[facflash->target_index^1];
 			asus_update_config(facflash,mode);
 			facflash->ctrl->flash_op_current[0]=icurr0;
@@ -548,9 +615,17 @@ void asus_flash_config(struct FAC_FLASH_INFO *facflash, uint32_t val0, uint32_t 
 static ssize_t asus_flash_store(struct file *dev, const char *buf, size_t count, loff_t *loff)
 {
 	uint32_t mode = 0,val[2]={0},argc=0;
+	int rc = 0;
 	struct FAC_FLASH_INFO * facflash=(struct FAC_FLASH_INFO *)PDE_DATA(file_inode(dev));
+	char temp[20] = {0};
 	CDBG(" E\n");
-	argc=sscanf(buf, "%d %d %d",&mode, &val[0],&val[1]);
+
+	rc  = copy_from_user(temp, buf,sizeof(temp));
+	if(rc){
+		printk("%s:%d  copy from user space  success\n",__func__,__LINE__);
+		}
+
+	argc=sscanf(temp, "%d %d %d",&mode, &val[0],&val[1]);
 	if(argc<2)
 	{
 		printk("%s:%d invalid parameter\n",__func__,__LINE__);
@@ -564,16 +639,21 @@ static ssize_t asus_flash_store(struct file *dev, const char *buf, size_t count,
 		if(argc==2)val[1]=val[0];
 		if(facflash  &&  facflash->ctrl)
 		{
-			if (mode==FAC_FLASH_MODE_RELEASE)
+			if (mode==FAC_FLASH_MODE_RELEASE  ||  (val[1]==0  &&  val[0]==0))
 			{
 				asus_flash_release(facflash->ctrl);
 				return count;
 			}
-			if(asus_flash_init(facflash->ctrl))
+			//if(asus_flash_init(facflash->ctrl))
 			{
 				//set the other led current to last value or 0 for first time use
 				if(argc==2)
 					val[facflash->target_index^1]=0;
+				if(facflash->ctrl->flash_state != MSM_CAMERA_FLASH_RELEASE)
+				{
+					pr_err("sz_cam_flash, previous operation not release flash, release it now\n");
+					asus_flash_release(facflash->ctrl);//avoid factory test wrong control flow for safety
+				}
 				asus_flash_config(facflash,val[0],val[1],mode);
 			}
 		}
@@ -583,34 +663,48 @@ static ssize_t asus_flash_store(struct file *dev, const char *buf, size_t count,
 void adjust_max_flash_current(bool is_otg_mode)
 {
 	int i=0;
-	CDBG(" E is_otg_mode=%d\n",is_otg_mode);
+	bool has_active=false;
+	//printk("%s is_otg_mode=%d\n",__func__,is_otg_mode);
 	g_is_otg_mode=is_otg_mode;
+	
 	switch(asus_project_id)
 	{
-		case ASUS_ZD552KL:
-			g_rear_flash_max_current=g_is_otg_mode?MAX_FLASH_CURRENT_PISCES_REAR_OTG_1:MAX_FLASH_CURRENT_PISCES_REAR_OTG_0;
-			g_front_flash_max_current=g_is_otg_mode?MAX_FLASH_CURRENT_PISCES_FRONT_OTG_1:MAX_FLASH_CURRENT_PISCES_FRONT_OTG_0;
-			g_rear_torch_max_current=g_is_otg_mode?MAX_TORCH_CURRENT_PISCES_REAR_OTG_1:MAX_TORCH_CURRENT_PISCES_REAR_OTG_0;
-			g_front_torch_max_current=g_is_otg_mode?MAX_TORCH_CURRENT_PISCES_FRONT_OTG_1:MAX_TORCH_CURRENT_PISCES_FRONT_OTG_0;
-			break;
 		case ASUS_ZS550KL:
 			//g_front_flash_max_current=g_is_otg_mode?MAX_FLASH_CURRENT_FRONT_OTG_1:MAX_FLASH_CURRENT_FRONT_OTG_0;
 			//g_front_torch_max_current=g_is_otg_mode?MAX_TORCH_CURRENT_FRONT_OTG_1:MAX_TORCH_CURRENT_FRONT_OTG_0;
 			g_rear_flash_max_current=g_is_otg_mode?MAX_FLASH_CURRENT_AQUARIUS_REAR_OTG_1:MAX_FLASH_CURRENT_AQUARIUS_REAR_OTG_0;
 			g_rear_torch_max_current=g_is_otg_mode?MAX_TORCH_CURRENT_AQUARIUS_REAR_OTG_1:MAX_TORCH_CURRENT_AQUARIUS_REAR_OTG_0;
 			break;
+		case ASUS_ZE553KL:
+			g_rear_flash_max_current=g_is_otg_mode?MAX_FLASH_CURRENT_HADES_REAR_OTG_1:MAX_FLASH_CURRENT_HADES_REAR_OTG_0;
+			g_rear_torch_max_current=g_is_otg_mode?MAX_TORCH_CURRENT_HADES_REAR_OTG_1:MAX_TORCH_CURRENT_HADES_REAR_OTG_0;
+			break;
+		case ASUS_ZD552KL_PHOENIX:
+			g_rear_flash_max_current=g_is_otg_mode?MAX_FLASH_CURRENT_PHOENIX_REAR_OTG_1:MAX_FLASH_CURRENT_PHOENIX_REAR_OTG_0;
+			g_front_flash_max_current=g_is_otg_mode?MAX_FLASH_CURRENT_PHOENIX_FRONT_OTG_1:MAX_FLASH_CURRENT_PHOENIX_FRONT_OTG_0;
+			g_rear_torch_max_current=g_is_otg_mode?MAX_TORCH_CURRENT_PHOENIX_REAR_OTG_1:MAX_TORCH_CURRENT_PHOENIX_REAR_OTG_0;
+			g_front_torch_max_current=g_is_otg_mode?MAX_TORCH_CURRENT_PHOENIX_FRONT_OTG_1:MAX_TORCH_CURRENT_PHOENIX_FRONT_OTG_0;
+			break;
 	}
 	for(i=0;i<4;i++)
 	{
-		if(g_facflash[i].ctrl==NULL)
-		{
-			//printk("%s:%d ctrl not found\n",__func__,__LINE__);//TODO:remove this
-		}else
+		if(g_facflash[i].ctrl != NULL)
 		{
 			if(g_facflash[i].ctrl->active)
 			{
-				asus_update_config(&g_facflash[i],FAC_FLASH_MODE_TORCH);
-			}
+				has_active=true;
+				if(g_facflash[i].torch_op_current>g_rear_torch_max_current)
+					g_facflash[i].torch_op_current=g_rear_torch_max_current;
+				if((i&1)==1 )
+				{
+					asus_flash_release(g_facflash[i].ctrl);
+					msleep(5);
+					asus_flash_config(&g_facflash[i]
+					,g_facflash[i-1].torch_op_current
+					,g_facflash[i].torch_op_current
+					,FAC_FLASH_MODE_TORCH);
+				}
+			}			
 		}
 	}
 }
@@ -650,14 +744,6 @@ void create_flash_proc_file(void* ctrl)
 		g_facflash[1].proc_file_flash = proc_create_data(pro_file_name, 0666, NULL, &asus_flash_proc_fops, &g_facflash[1]);
 		if(!g_facflash[1].proc_file_flash)
 			printk("%s proc_create_data %s failed\n",__func__,pro_file_name);
-		//create brightness proc file
-		if(asus_project_id==ASUS_ZD552KL)
-		{
-			g_facflash[0].target_index=1;//for pisces hw connection
-			g_facflash[1].target_index=0;
-			create_brightness_proc_file(&g_facflash[0]);  //create proc fille for setting  brightness
-			create_asus_flash_trigger_time_proc_file(&g_facflash[0]); 
-		}
 	}
 	else //if(((struct msm_flash_ctrl_t *)ctrl)->flash_driver_type == FLASH_DRIVER_PMIC)    //change for CS codebase update 
 	{
@@ -666,13 +752,6 @@ void create_flash_proc_file(void* ctrl)
 		g_facflash[2].target_index=0;
 		g_facflash[2].is_firsttime=1;
 		//create flash proc file
-		if(asus_project_id==ASUS_ZD552KL)
-		{
-			g_facflash[2].torch_op_current=g_front_torch_max_current;
-			g_facflash[2].flash_op_current=g_front_flash_max_current;
-			snprintf(pro_file_name,ARRAY_SIZE(pro_file_name),"%s",PROC_FILE_ASUS_FLASH_3);
-		}
-		else
 		{
 			g_facflash[2].torch_op_current=g_rear_torch_max_current;
 			g_facflash[2].flash_op_current=g_rear_flash_max_current;
@@ -688,20 +767,27 @@ void create_flash_proc_file(void* ctrl)
 		g_facflash[3].index=3;
 		g_facflash[3].target_index=1;
 		g_facflash[3].is_firsttime=1;
-		if(asus_project_id==ASUS_ZD552KL)
 		{
-			g_facflash[3].torch_op_current=g_front_torch_max_current;
-			snprintf(pro_file_name,ARRAY_SIZE(pro_file_name),"%s",PROC_FILE_ASUS_FLASH_4);
-		}
-		else
-		{
-			g_facflash[3].torch_op_current=g_rear_torch_max_current;
+			if(asus_project_id==ASUS_ZD552KL_PHOENIX)
+			{
+				g_facflash[3].torch_op_current=g_front_torch_max_current;
+				g_facflash[3].flash_op_current=g_front_flash_max_current;
+			}
+			else
+			{
+				g_facflash[3].torch_op_current=g_rear_torch_max_current;
+			}
 			snprintf(pro_file_name,ARRAY_SIZE(pro_file_name),"%s",PROC_FILE_ASUS_FLASH_2);
 		}
 		if(asus_project_id==ASUS_ZS550KL)
 		{
 			g_facflash[2].target_index=1;//for AQU hw connection
 			g_facflash[3].target_index=0;
+		}
+		else if(asus_project_id==ASUS_ZD552KL_PHOENIX)
+		{
+			g_facflash[2].target_index=1;//rear
+			g_facflash[3].target_index=0;//front
 		}
 		g_facflash[3].proc_file_flash = proc_create_data(pro_file_name, 0666, NULL, &asus_flash_proc_fops, &g_facflash[3]);
 		if(!g_facflash[3].proc_file_flash)
@@ -737,14 +823,21 @@ static ssize_t flash_brightness_proc_write(struct file *dev, const char *buf, si
 	else
 	{
 		if(now_flash_brightness_value>100)now_flash_brightness_value=100;
-		set_val0 = g_rear_torch_max_current*now_flash_brightness_value/100;
+		set_val0 = 135*now_flash_brightness_value/100;
 		last_flash_brightness_value = set_val0;
 		set_val1=set_val0;
-		if(asus_project_id==ASUS_ZS550KL)
+		if(asus_project_id==ASUS_ZS550KL || asus_project_id==ASUS_ZD552KL_PHOENIX)
 			set_val0=0;
 		else
 			set_val1=0;
-		asus_flash_config(facflash,set_val0,set_val1,FAC_FLASH_MODE_TORCH);
+		if(set_val0 == 0 && set_val1 == 0)
+		{
+			asus_flash_release(facflash->ctrl);
+		}
+		else
+		{
+			asus_flash_config(facflash,set_val0,set_val1,FAC_FLASH_MODE_TORCH);
+		}
 	}
 	return count;
 }
@@ -762,7 +855,7 @@ void create_brightness_proc_file(void* ctrl)
     last_flash_brightness_value = 0;
     flash_brightness_proc_file = proc_create_data(FLASH_BRIGHTNESS_PROC_FILE, 0666, NULL, &flash_brightness_fops,ctrl);
     if (flash_brightness_proc_file) {
-    	//printk("%s [AsusFlashBrightness]flash_brightness_proc_file sucessed!\n", __func__);
+    	printk("%s [AsusFlashBrightness]flash_brightness_proc_file sucessed!\n", __func__);
     } else {
     	printk("%s [AsusFlashBrightness]flash_brightness_proc_file failed!\n", __func__);
     }
@@ -790,8 +883,16 @@ static int asus_flash_trigger_time_proc_open(struct inode *inode, struct  file *
 static ssize_t asus_flash_trigger_time_proc_write(struct file *dev, const char *buf, size_t count, loff_t *loff)
 {
 	uint32_t timeout = 0,flash_current = ZENFLASH_DEFAULT_CURRENT,argc=0;
+	int rc = 0;
 	struct FAC_FLASH_INFO * facflash=(struct FAC_FLASH_INFO *)PDE_DATA(file_inode(dev));
-	argc=sscanf(buf, "%d %d", &timeout,&flash_current);
+	char temp[20] = {0};
+
+	rc  = copy_from_user(temp, buf,sizeof(temp));
+	if(rc){
+		printk("%s:%d  copy from user space  success\n",__func__,__LINE__);
+		}
+
+	argc=sscanf(temp, "%d %d", &timeout,&flash_current);
 	if(argc<1)
 	{
 		printk("%s invalid parameter\n",__func__);
@@ -802,13 +903,14 @@ static ssize_t asus_flash_trigger_time_proc_write(struct file *dev, const char *
 		flash_current=argc==1?ZENFLASH_DEFAULT_CURRENT:flash_current;
 		flash_current=flash_current>ZENFLASH_MAX_CURRENT?ZENFLASH_MAX_CURRENT:flash_current;
 		g_asus_flash_tigger_current=flash_current;
-		printk("%s:%d timeout=%d,current=%d\n",__func__,__LINE__,timeout,flash_current);
-		if(asus_project_id==ASUS_ZS550KL)
+		//printk("%s:%d timeout=%d,current=%d\n",__func__,__LINE__,timeout,flash_current);
+		if(asus_project_id==ASUS_ZS550KL || asus_project_id==ASUS_ZD552KL_PHOENIX)
 			asus_flash_config(facflash,0,flash_current,FAC_FLASH_MODE_FLASH);
 		else
 			asus_flash_config(facflash,flash_current,0,FAC_FLASH_MODE_FLASH);
 		msleep(timeout);
-		asus_flash_config(facflash,0,0,FAC_FLASH_MODE_FLASH);
+		asus_flash_release(facflash->ctrl);
+		//asus_flash_config(facflash,0,0,FAC_FLASH_MODE_FLASH);
 	}
 	return count;
 }
@@ -825,7 +927,7 @@ void create_asus_flash_trigger_time_proc_file(void* ctrl)
 {
     asus_flash_trigger_time_proc_file = proc_create_data(FLASH_TRIGGER_PROC_FILE, 0666, NULL, &asus_flash_trigger_time_fops,ctrl);
     if (asus_flash_trigger_time_proc_file) {
-    	//printk("%s [asus_flash_trigger_time]flash_brightness_proc_file sucessed!\n", __func__);
+    	printk("%s [asus_flash_trigger_time]flash_brightness_proc_file sucessed!\n", __func__);
     } else {
     	printk("%s [asus_flash_trigger_time]flash_brightness_proc_file failed!\n", __func__);
     }

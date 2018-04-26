@@ -43,11 +43,17 @@ struct msm_ois_vreg {
 
 /*ASUS_BSP +++ bill_chen "Implement ois"*/
 struct msm_ois_board_info {
-	uint16_t i2c_slaveaddr;
+//	uint16_t i2c_slaveaddr;
 	struct msm_camera_power_ctrl_t power_info;
 	enum i2c_freq_mode_t i2c_freq_mode;
-};
+//};
 /*ASUS_BSP --- bill_chen "Implement ois"*/
+
+//struct msm_ois_board_info {
+	char ois_name[MAX_OIS_NAME_SIZE];
+	uint32_t i2c_slaveaddr;
+	struct msm_ois_opcode opcode;
+};
 
 struct msm_ois_ctrl_t {
 	struct i2c_driver *i2c_driver;
@@ -69,8 +75,9 @@ struct msm_ois_ctrl_t {
 	struct msm_camera_gpio_conf *gconf;
 	struct msm_pinctrl_info pinctrl_info;
 	uint8_t cam_pinctrl_status;
-	/*ASUS_BSP +++ bill_chen "Implement ois"*/
 	struct msm_ois_board_info *oboard_info;
+	/*ASUS_BSP +++ bill_chen "Implement ois"*/
+	//struct msm_ois_board_info *oboard_info;
 	int32_t userspace_probe;
 	//enum i2c_freq_mode_t i2c_freq_mode;
 	uint32_t sensor_id_reg_addr;
@@ -194,19 +201,19 @@ static struct reg_settings_ois_t ois_init_setting_array[] = {
     36000 => DIV_M = 0x9F05  V
 	27000 => DIV_M = 0x3704
 	*/
-	{.reg_addr = 0x8264, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x6040, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},																
+	{.reg_addr = 0x8264, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x6040, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},
 
-	{.reg_addr = 0x8260, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x1130, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},																
+	{.reg_addr = 0x8260, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x1130, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},
 
-	{.reg_addr = 0x8265, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x8000, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},																
+	{.reg_addr = 0x8265, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x8000, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},
 
-	{.reg_addr = 0x8261, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x0280, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},																
+	{.reg_addr = 0x8261, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x0280, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},
 
-	{.reg_addr = 0x8261, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x0380, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},																
+	{.reg_addr = 0x8261, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x0380, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},
 
-	{.reg_addr = 0x8261, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x0988, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},																
+	{.reg_addr = 0x8261, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x0988, .data_type = MSM_CAMERA_I2C_WORD_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},
 
-    //program download 
+	//program download 
 	{.reg_addr = 0x8200, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x0001, .data_type = MSM_CAMERA_I2C_READ_FW_DATA,.i2c_operation = MSM_OIS_READ, .delay = 0},
 
 	{.reg_addr = 0x8200, .addr_type = MSM_CAMERA_I2C_WORD_ADDR, .reg_data = 0x0001, .data_type = MSM_CAMERA_I2C_WRITE_FW_DATA,.i2c_operation = MSM_OIS_WRITE, .delay = 0},

@@ -20,22 +20,20 @@
 #include <asm/io.h>
 #include <linux/export.h>
 #include <linux/slab.h>
+#include <linux/switch.h>
 //extern int g_user_dbg_mode;
 
-#include "locking/rtmutex_common.h"
+//add dump_boot_reasons ++++
+#include <soc/qcom/smem.h>
+//add dump_boot_reasons ----
 
-char evtlog_bootup_reason[100];
-char evtlog_poweroff_reason[100];
-char evtlog_warm_reset_reason[100];
-extern u8 download_mode_value;
-extern u16 warm_reset_value;
+#include "locking/rtmutex_common.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 int entering_suspend = 0;
 #endif
 phys_addr_t PRINTK_BUFFER_PA = 0x8FE00000;
 void *PRINTK_BUFFER_VA;
-phys_addr_t RTB_BUFFER_PA = 0x8FE00000 + SZ_1M;
 extern struct timezone sys_tz;
 #define RT_MUTEX_HAS_WAITERS	1UL
 #define RT_MUTEX_OWNER_MASKALL	1UL
@@ -794,6 +792,35 @@ static void deinitKernelEnv(void)
     set_fs(oldfs);
 }
 
+
+//ASUS_BSP+++  "[ZC550KL][TRACE][Na] add rule to trige trace"
+int asus_trace_trige_state = 0;
+struct switch_dev asus_trace_trige_switch;
+static ssize_t asus_trace_trige_name(struct switch_dev *sdev, char *buf)
+{
+	return sprintf(buf, "trace_trige\n");
+}
+
+static ssize_t asus_trace_trige_switch_state(struct switch_dev *sdev, char *buf)
+{
+	return sprintf(buf, "%d\n", asus_trace_trige_state);
+}
+
+static int AsusTraceTrigeInitialize(void)
+{
+	int ret = 0;
+	printk("[TRACE] %s: register switch dev! %d\n", __FUNCTION__, ret);
+	asus_trace_trige_switch.name = "tracetrige";
+	asus_trace_trige_switch.print_state = asus_trace_trige_switch_state;
+	asus_trace_trige_switch.print_name = asus_trace_trige_name;
+	ret = switch_dev_register(&asus_trace_trige_switch);
+	if (ret < 0) {
+	    printk("[TRACE] %s: Unable to register switch dev! %d\n", __FUNCTION__, ret);
+	    return -1;
+	}
+	return 0;
+}
+//ASUS_BSP--- "[ZC550KL][TRACE][Na] add rule to trige trace"
 char messages[256];
 void save_phone_hang_log(void)
 {
@@ -801,7 +828,7 @@ void save_phone_hang_log(void)
     int ret;
     //---------------saving phone hang log if any -------------------------------
     g_phonehang_log = (char*)PHONE_HANG_LOG_BUFFER;
-    //printk("[ASDF]save_phone_hang_log PRINTK_BUFFER=%p, PHONE_HANG_LOG_BUFFER=%p\n", PRINTK_BUFFER_VA, PHONE_HANG_LOG_BUFFER);
+    printk("[ASDF]save_phone_hang_log PRINTK_BUFFER=%p, PHONE_HANG_LOG_BUFFER=%p\n", PRINTK_BUFFER_VA, PHONE_HANG_LOG_BUFFER);
     if(g_phonehang_log && ((strncmp(g_phonehang_log, "PhoneHang", 9) == 0) || (strncmp(g_phonehang_log, "ASUSSlowg", 9) == 0)) )
     {
         printk("[ASDF]save_phone_hang_log-1\n");
@@ -824,6 +851,9 @@ void save_phone_hang_log(void)
         g_phonehang_log[0] = 0;
         //iounmap(g_phonehang_log);
     }
+	printk("triger trace %d\n", asus_trace_trige_state);
+	asus_trace_trige_state = !asus_trace_trige_state;
+	switch_set_state(&asus_trace_trige_switch, asus_trace_trige_state);
 }
 EXPORT_SYMBOL(save_phone_hang_log);
 void save_last_shutdown_log(char* filename)
@@ -832,8 +862,6 @@ void save_last_shutdown_log(char* filename)
     int file_handle;
     unsigned long long t;
     unsigned long nanosec_rem;
-    char buffer[] = {"Kernel panic"};
-    int i;
 
     t = cpu_clock(0);
 	nanosec_rem = do_div(t, 1000000000);
@@ -848,70 +876,19 @@ void save_last_shutdown_log(char* filename)
     {
         sys_write(file_handle, (unsigned char*)last_shutdown_log, PRINTK_BUFFER_SLOT_SIZE);
         sys_close(file_handle);
-	 for(i=0; i<PRINTK_BUFFER_SLOT_SIZE; i++) {
-            // Check if it is kernel panic
-            if (strncmp((last_shutdown_log + i), buffer, strlen(buffer)) == 0) {
-                ASUSEvtlog("[Reboot] Kernel panic\n");
-                break;
-            }
-        }
     } else {
 		printk("[ASDF] save_last_shutdown_error: [%d]\n", file_handle);
 	}
-	
-	// Check PMIC register 0xA048 Bit1
-	if (download_mode_value & 0x02) {
-		ASUSEvtlog("[Reboot] Watchdog reset\n");
-	}
-	// Check PMIC register 0xA048 Bit0
-	if (download_mode_value & 0x01) {
-		ASUSEvtlog("[Reboot] Download mode\n");
-	}
-	
     deinitKernelEnv();
 
 }
-
-#if defined(CONFIG_MSM_RTB)
-extern struct msm_rtb_state msm_rtb;
-
-int g_saving_rtb_log = 1;
-
-void save_rtb_log(void)
-{
-	char *rtb_log;
-	char rtb_log_path[256] = {0};
-	int file_handle;
-	unsigned long long t;
-	unsigned long nanosec_rem;
-
-	rtb_log = (char*)msm_rtb.rtb;
-	t = cpu_clock(0);
-	nanosec_rem = do_div(t, 1000000000);
-	snprintf(rtb_log_path, sizeof(rtb_log_path)-1, ASUS_ASDF_BASE_DIR"/rtb_%lu.%06lu.bin",
-				(unsigned long) t,
-				nanosec_rem / 1000);
-
-	initKernelEnv();
-	file_handle = sys_open(rtb_log_path, O_CREAT|O_RDWR|O_SYNC, 0);
-	if(!IS_ERR((const void *)(ulong)file_handle))
-	{
-		sys_write(file_handle, (unsigned char*)rtb_log, msm_rtb.size);
-		sys_close(file_handle);
-	} else {
-		printk("[ASDF] save_rtb_log_error: [%d]\n", file_handle);
-	}
-	deinitKernelEnv();
-
-}
-#endif
 
 void get_last_shutdown_log(void)
 {
     ulong *printk_buffer_slot2_addr;
 
     printk_buffer_slot2_addr = (ulong *)PRINTK_BUFFER_SLOT2;
-    //printk("[ASDF]get_last_shutdown_log: printk_buffer_slot2=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
+    printk("[ASDF]get_last_shutdown_log: printk_buffer_slot2=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
     if(*printk_buffer_slot2_addr == (ulong)PRINTK_BUFFER_MAGIC) {
         save_last_shutdown_log("LastShutdown");
     }
@@ -930,71 +907,122 @@ static int g_Asus_Eventlog_write = 0;
 static void do_write_event_worker(struct work_struct *work);
 static DECLARE_WORK(eventLog_Work, do_write_event_worker);
 
+//add dump_boot_reasons ++++
+extern void asus_dump_bootup_reason(char *bootup_reason);
+
+static void dump_boot_reasons(void)
+{
+	char buffer[256] = {0};
+	unsigned smem_size = 0;
+	unsigned char* pmic_boot_reasons = NULL;
+
+	pmic_boot_reasons = (unsigned char *)(smem_get_entry(SMEM_POWER_ON_STATUS_INFO, &smem_size,false,true));
+	if(NULL == pmic_boot_reasons || smem_size < 8)
+	{
+		printk(KERN_ERR "%s get boot reasons failed.", __func__);
+		return;
+	}
+
+	snprintf(buffer, 255, "PMIC Boot Reasons:%02X %02X %02X %02X %02X %02X %02X %02X\n",
+			 pmic_boot_reasons[0], pmic_boot_reasons[1], pmic_boot_reasons[2], pmic_boot_reasons[3],
+			 pmic_boot_reasons[4], pmic_boot_reasons[5], pmic_boot_reasons[6], pmic_boot_reasons[7]);
+
+	printk(KERN_NOTICE "%s", buffer);
+	sys_write(g_hfileEvtlog, buffer, strlen(buffer));
+
+	memset(buffer, 0, strlen(buffer));
+	asus_dump_bootup_reason(buffer);
+	sys_write(g_hfileEvtlog, buffer, strlen(buffer));
+}
+//add dump_boot_reasons ----
+
 static struct mutex mA;
 #define AID_SDCARD_RW 1015
+extern int boot_delay_complete;
 static void do_write_event_worker(struct work_struct *work)
 {
 	char buffer[256];
+	bool open_file_fail;
+
 	memset(buffer, 0, sizeof(char)*256);
 
 	//printk("[ASDF] enter %s\n",__func__);
+
+	if(boot_delay_complete == 0)
+	{
+		printk(" boot_after_10sec  fail \n");
+		goto write_event_out;
+	}
+
 	if (IS_ERR((const void *)(ulong)g_hfileEvtlog)) {
 		long size;
-		g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0444);
+		g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0666);
+		printk("g_hfileEvtlog => %d \n",g_hfileEvtlog);
+		if(g_hfileEvtlog < 0)
+		{
+			open_file_fail = true;
+			goto write_event_out;
+		}
+		else
+		{
+			open_file_fail = false;
+		}
+
 		sys_chown(ASUS_EVTLOG_PATH".txt", AID_SDCARD_RW, AID_SDCARD_RW);
 
 		size = sys_lseek(g_hfileEvtlog, 0, SEEK_END);
+
 		if (size >= SZ_2M) {
 			sys_close(g_hfileEvtlog);
 			sys_rmdir(ASUS_EVTLOG_PATH"_old.txt");
 			sys_rename(ASUS_EVTLOG_PATH".txt", ASUS_EVTLOG_PATH"_old.txt");
-			g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0444);
+			g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0666);
 		}
-		
-	        if (warm_reset_value) {
-	    		snprintf(buffer, sizeof(buffer),
-	                "\n\n---------------System Boot----%s---------\n"
-	                "[Reboot] Warm reset Reason: %s ###### \n"
-	                "###### Bootup Reason: %s ######\n",
-	                ASUS_SW_VER,
-	                evtlog_warm_reset_reason,
-	                evtlog_bootup_reason);
+		sprintf(buffer, "\n\n---------------System Boot----%s---------\n", ASUS_SW_VER);
 
-	        } else {
-	    		snprintf(buffer, sizeof(buffer),
-	                "\n\n---------------System Boot----%s---------\n"
-	                "[Shutdown] Power off Reason: %s ###### \n"
-	                "###### Bootup Reason: %s ######\n",
-	                ASUS_SW_VER,
-	                evtlog_poweroff_reason,
-	                evtlog_bootup_reason);
-	        }
 		sys_write(g_hfileEvtlog, buffer, strlen(buffer));
+
+		sys_fsync(g_hfileEvtlog);
+		//add dump_boot_reasons ++++
+		if(!IS_ERR((const void*)(ulong)g_hfileEvtlog))
+		{
+			dump_boot_reasons();
+		}
+		//add dump_boot_reasons ----
 		sys_close(g_hfileEvtlog);
 	}
+
+	if(open_file_fail)
+	{
+		printk("open ASUS_EVTLOG_PATH file fail \n");
+		goto write_event_out;
+	}
+
 	if (!IS_ERR((const void *)(ulong)g_hfileEvtlog)) {
 		int str_len;
 		char *pchar;
 		long size;
-		g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0444);
+		g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0666);
 		sys_chown(ASUS_EVTLOG_PATH".txt", AID_SDCARD_RW, AID_SDCARD_RW);
 
 		size = sys_lseek(g_hfileEvtlog, 0, SEEK_END);
+
 		if (size >= SZ_2M) {
 			sys_close(g_hfileEvtlog);
 			sys_rmdir(ASUS_EVTLOG_PATH"_old.txt");
 			sys_rename(ASUS_EVTLOG_PATH".txt", ASUS_EVTLOG_PATH"_old.txt");
-			g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0444);
+			g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0666);
 		}
 
 		while (g_Asus_Eventlog_read != g_Asus_Eventlog_write) {
 			mutex_lock(&mA);
+
 			str_len = strlen(g_Asus_Eventlog[g_Asus_Eventlog_read]);
 			pchar = g_Asus_Eventlog[g_Asus_Eventlog_read];
+
 			g_Asus_Eventlog_read++;
 			g_Asus_Eventlog_read %= ASUS_EVTLOG_MAX_ITEM;
 			mutex_unlock(&mA);
-
 			if (pchar[str_len - 1] != '\n' ) {
 				if(str_len + 1 >= ASUS_EVTLOG_STR_MAXLEN)
 					str_len = ASUS_EVTLOG_STR_MAXLEN - 2;
@@ -1007,6 +1035,11 @@ static void do_write_event_worker(struct work_struct *work)
 		}
 		sys_close(g_hfileEvtlog);
 	}
+
+write_event_out:
+	if(open_file_fail)
+		printk("open ASUS_EVTLOG_PATH file fail \n");
+
 }
 
 extern struct timezone sys_tz;
@@ -1053,21 +1086,20 @@ EXPORT_SYMBOL(ASUSEvtlog);
 
 static ssize_t evtlogswitch_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
-	ulong *printk_buffer_slot2_addr;
-	if(strncmp(buf, "0", 1) == 0) {
-		ASUSEvtlog("[ASDF] ASUSEvtlog disable !!");
+	memset(messages, 0, sizeof(messages));
+	if (copy_from_user(messages, buf, count))
+		return -EFAULT;
+
+	if(strncmp(messages, "0", 1) == 0) {
+		ASUSEvtlog("ASUSEvtlog disable !!");
 		printk("ASUSEvtlog disable !!\n");
 		flush_work(&eventLog_Work);
 		g_bEventlogEnable = 0;
-		printk_buffer_slot2_addr = (ulong *)PRINTK_BUFFER_SLOT2;
-		(*printk_buffer_slot2_addr) = 0;
 	}
-	if (strncmp(buf, "1", 1) == 0) {
+	if (strncmp(messages, "1", 1) == 0) {
 		g_bEventlogEnable = 1;
-		ASUSEvtlog("[ASDF] ASUSEvtlog enable !!");
+		ASUSEvtlog("ASUSEvtlog enable !!");
 		printk("ASUSEvtlog enable !!\n");
-		printk_buffer_slot2_addr = (ulong *)PRINTK_BUFFER_SLOT2;
-		(*printk_buffer_slot2_addr) = (ulong)PRINTK_BUFFER_MAGIC;
 	}
 
 	return count;
@@ -1080,7 +1112,7 @@ static ssize_t asusevtlog_write(struct file *file, const char __user *buf, size_
 	memset(messages, 0, sizeof(messages));
 	if (copy_from_user(messages, buf, count))
 		return -EFAULT;
-	ASUSEvtlog(messages);
+	ASUSEvtlog("%s",messages);
 
 	return count;
 }
@@ -1115,38 +1147,30 @@ static ssize_t asusdebug_write(struct file *file, const char __user *buf, size_t
 	if (strncmp(messages, "panic", strlen("panic")) == 0) {
 		panic("panic test");
 	} else if (strncmp(messages, "dbg", strlen("dbg")) == 0) {
-//		g_user_dbg_mode = 1;
+			g_user_dbg_mode = 1;
 //		printk("[ASDF]Kernel dbg mode = %d\n", g_user_dbg_mode);
 		printk("[ASDF]g_user_dbg_mode has been removed\n");
 	} else if(strncmp(messages, "ndbg", strlen("ndbg")) == 0) {
-//		g_user_dbg_mode = 0;
+			g_user_dbg_mode = 0;
 //		printk("[ASDF]Kernel dbg mode = %d\n", g_user_dbg_mode);
 		printk("[ASDF]g_user_dbg_mode has been removed\n");
 	} else if(strncmp(messages, "get_asdf_log",
 				strlen("get_asdf_log")) == 0) {
-#ifdef CONFIG_MSM_RTB
-		extern int g_saving_rtb_log;
-#endif
+
 		ulong *printk_buffer_slot2_addr;
 
 		printk_buffer_slot2_addr = (ulong *)PRINTK_BUFFER_SLOT2;
-		//printk("[ASDF] printk_buffer_slot2_addr=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
+		printk("[ASDF] printk_buffer_slot2_addr=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
 
 		if(!asus_asdf_set) {
 			asus_asdf_set = 1;
 			save_phone_hang_log();
 			get_last_shutdown_log();
 			printk("[ASDF] get_last_shutdown_log: printk_buffer_slot2_addr=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
-#ifdef CONFIG_MSM_RTB
-			if ((*printk_buffer_slot2_addr) == (ulong)PRINTK_BUFFER_MAGIC )
-				save_rtb_log();
-#endif
-			//(*printk_buffer_slot2_addr)=(ulong)PRINTK_BUFFER_MAGIC;
-			(*printk_buffer_slot2_addr)=0;
+			(*printk_buffer_slot2_addr)=(ulong)PRINTK_BUFFER_MAGIC;
+			//(*printk_buffer_slot2_addr)=0;
 		}
-#ifdef CONFIG_MSM_RTB
-		g_saving_rtb_log = 0;
-#endif
+
 	} else if(strncmp(messages, "slowlog", strlen("slowlog")) == 0) {
 		printk("[ASDF]start to gi chk\n");
 		save_all_thread_info();
@@ -1161,6 +1185,7 @@ static ssize_t asusdebug_write(struct file *file, const char __user *buf, size_t
 
 	return count;
 }
+
 
 static const struct file_operations proc_evtlogswitch_operations = {
 	.write	  = evtlogswitch_write,
@@ -1300,6 +1325,7 @@ static int __init proc_asusdebug_init(void)
 	register_early_suspend(&asusdebug_early_suspend_handler);
 #endif
 
+	AsusTraceTrigeInitialize();
 	return 0;
 }
 module_init(proc_asusdebug_init);

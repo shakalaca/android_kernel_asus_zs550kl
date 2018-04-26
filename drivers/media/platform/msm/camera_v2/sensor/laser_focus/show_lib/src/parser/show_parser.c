@@ -175,7 +175,7 @@ int32_t get_dtsi_data(struct device_node *of_node, struct msm_laser_focus_ctrl_t
 		dev_t->sensordata->slave_info->sensor_slave_addr,
 		dev_t->sensordata->slave_info->sensor_id_reg_addr,
 		dev_t->sensordata->slave_info->sensor_id);
-#if 0
+#if 1
 	/* Handle GPIO (e.g. CAM_1V2_EN) */
 	rc = dtsi_gpio_parser(of_node, sensordata);
 	if(rc < 0){

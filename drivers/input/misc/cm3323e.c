@@ -503,17 +503,13 @@ static long rgbsensor_ioctl(struct file *file, unsigned int cmd, unsigned long a
 			
 			switch(asus_project_id)
 				{
-				case ASUS_ZC552KL://ASUS_ZC552KL
+				case ASUS_ZE553KL://ASUS_ZE553KL
 					strcpy(modelName,"ZC552KL");
 					//modelName="ZC552KL";
 					break;
 				case ASUS_ZS550KL://ASUS_ZS550KL
 					strcpy(modelName,"ZS550KL");
 					//modelName="ZS550KL";
-					break;
-				case ASUS_ZD552KL: //ASUS_ZD552KL
-					strcpy(modelName,"ZD552KL");
-					//modelName="ZD552KL";
 					break;
 				default:
 					strcpy(modelName,"ZD552KL");

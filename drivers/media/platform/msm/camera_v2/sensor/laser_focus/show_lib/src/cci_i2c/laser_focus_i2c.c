@@ -35,7 +35,7 @@ int CCI_I2C_WrByte(struct msm_laser_focus_ctrl_t *dev_t, uint32_t register_addr,
 	status = sensor_i2c_client->i2c_func_tbl->i2c_write(sensor_i2c_client, register_addr,
 				i2c_write_data, MSM_CAMERA_I2C_BYTE_DATA);
 	if (status < 0) {
-		WARN_ON(1);
+		//WARN_ON(1);
 		LOG_Handler(LOG_ERR, "%s: wirte register(0x%x) failed, data 0x%x\n", __func__, register_addr,i2c_write_data);
 		return status;
 	}
@@ -72,7 +72,7 @@ int CCI_I2C_WrWord(struct msm_laser_focus_ctrl_t *dev_t, uint32_t register_addr,
 	status = sensor_i2c_client->i2c_func_tbl->i2c_write(sensor_i2c_client, register_addr,
 				i2c_write_data, MSM_CAMERA_I2C_WORD_DATA);
 	if (status < 0) {
-		WARN_ON(1);
+		//WARN_ON(1);
 		LOG_Handler(LOG_ERR, "%s: wirte register(0x%x) failed, data 0x%x\n", __func__, register_addr,i2c_write_data);
 		return status;
 	}
@@ -109,7 +109,7 @@ int CCI_I2C_WrByteSeq(struct msm_laser_focus_ctrl_t *dev_t, uint32_t register_ad
 		i2c_write_data, num_byte);
 
 	if (status < 0) {
-		WARN_ON(1);
+		//WARN_ON(1);
 		LOG_Handler(LOG_ERR, "%s: write register(0x%x) failed\n", __func__, register_addr);
 		return status;
 	}
@@ -146,7 +146,7 @@ int CCI_I2C_RdByte(struct msm_laser_focus_ctrl_t *dev_t, uint32_t register_addr,
        status = sensor_i2c_client->i2c_func_tbl->i2c_read(sensor_i2c_client, register_addr,
                        i2c_read_data, MSM_CAMERA_I2C_BYTE_DATA);
        if (status < 0) {
-				WARN_ON(1);
+			   //WARN_ON(1);
                LOG_Handler(LOG_ERR, "%s: read register(0x%x) failed\n", __func__, register_addr);
                return status;
        }
@@ -181,7 +181,7 @@ int CCI_I2C_RdWord(struct msm_laser_focus_ctrl_t *dev_t, uint32_t register_addr,
 	status = sensor_i2c_client->i2c_func_tbl->i2c_read(sensor_i2c_client, register_addr,
 		i2c_read_data, MSM_CAMERA_I2C_WORD_DATA);
 	if (status < 0) {
-		WARN_ON(1);
+		//WARN_ON(1);
 		LOG_Handler(LOG_ERR, "%s: read register(0x%x) failed\n", __func__, register_addr);
 		return status;
 	}
@@ -224,7 +224,7 @@ int CCI_I2C_RdDWord(struct msm_laser_focus_ctrl_t *dev_t, uint32_t register_addr
 		reg_setting.reg_data, reg_setting.reg_data_size);
 	
 	if (status < 0) {
-		WARN_ON(1);
+		//WARN_ON(1);
 		LOG_Handler(LOG_ERR, "%s: read register(0x%x) failed\n", __func__, register_addr);
 		return status;
 	}
@@ -263,7 +263,7 @@ int CCI_I2C_RdByteSeq(struct msm_laser_focus_ctrl_t *dev_t, uint32_t register_ad
 	status = sensor_i2c_client->i2c_func_tbl->i2c_read_seq(sensor_i2c_client, register_addr, 
 		buf, num_byte);
 	if (status < 0) {
-		WARN_ON(1);
+		//WARN_ON(1);
 		LOG_Handler(LOG_ERR, "%s: read register(0x%x) failed\n", __func__, register_addr);
 		return status;
 	}

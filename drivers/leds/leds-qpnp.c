@@ -866,11 +866,21 @@ static int qpnp_wled_set(struct qpnp_led_data *led)
 	return 0;
 }
 
+static int global_brightness = -1;
+static char global_name[10];
+
 static int qpnp_mpp_set(struct qpnp_led_data *led)
 {
 	int rc;
 	u8 val;
 	int duty_us, duty_ns, period_us;
+	if((global_brightness == led->cdev.brightness) && !strcmp(global_name,led->cdev.name)){
+		printk("[LED] %s skip!\n", __func__);
+		return 0;
+	}
+
+	global_brightness = led->cdev.brightness;
+	strcpy(global_name, led->cdev.name);
 
 	printk("[LED] %s set %s brightness =%d\n",__FUNCTION__,led->cdev.name,led->cdev.brightness);
 	if (led->cdev.brightness) {
@@ -1819,6 +1829,7 @@ static void qpnp_led_set(struct led_classdev *led_cdev,
 		value = led->cdev.max_brightness;
 
 	led->cdev.brightness = value;
+	flush_work(&led->work);
 	if (led->in_order_command_processing)
 		queue_work(led->workqueue, &led->work);
 	else

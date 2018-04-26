@@ -25,107 +25,111 @@
 #include <linux/device.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
-
+#include <linux/time.h>
+#include <soc/qcom/camera2.h>
 #include "msm_sensor.h"
+#include "actuator/msm_actuator.h"
+#include "eeprom/msm_eeprom.h"
+#include <linux/thermal.h>
 
-#define  sheldon_debug      pr_debug
+#undef CDBG
+#undef pr_fmt
+#define pr_fmt(fmt) "%s:%d " fmt, __func__, __LINE__
+
+#define  HADES_OTP_MODE   //define for hades rear otp read
 
 #define SENSOR_ID_IMX298  0x0298
 #define SENSOR_ID_T4K37   0x1c21
 #define SENSOR_ID_T4K35   0x1481
 #define SENSOR_ID_OV5670  0x5670
 #define SENSOR_ID_OV8856  0x885a
+#define SENSOR_ID_IMX362  0x0362
+#define SENSOR_ID_S5K3M3  0x30D3
+#define SENSOR_ID_IMX214  0x0214
+#define SENSOR_ID_IMX351  0x0351
 
+#define OTP_DATA_LEN_WORD (32)
+#define OTP_DATA_LEN_BYTE (OTP_DATA_LEN_WORD*2)
 
-#define OTP_DATA_LEN_WORD (16)
-#define OTP_DATA_LEN_BYTE (32)
+#define	PROC_FILE_OTP_REAR_1  "driver/rear_otp"
+#define	PROC_FILE_OTP_REAR_2  "driver/rear2_otp"
+#define	PROC_FILE_OTP_FRONT	"driver/front_otp"
+#define	PROC_FILE_OTP_FRONT_2	"driver/front2_otp"
 
-#define	PROC_FILE_STATUS_REAR	"driver/rear_otp"
-#define	PROC_FILE_STATUS_FRONT	"driver/front_otp"
-#define	PROC_FILE_STATUS_BANK1_REAR	"driver/rear_otp_bank1"
+#define	PROC_FILE_STATUS_BANK1_REAR_1	"driver/rear_otp_bank1"
+#define	PROC_FILE_STATUS_BANK1_REAR_2	"driver/rear2_otp_bank1"
 #define	PROC_FILE_STATUS_BANK1_FRONT	"driver/front_otp_bank1"
-#define	PROC_FILE_STATUS_BANK2_REAR	"driver/rear_otp_bank2"
+
+#define	PROC_FILE_STATUS_BANK2_REAR_1	"driver/rear_otp_bank2"
+#define	PROC_FILE_STATUS_BANK2_REAR_2	"driver/rear2_otp_bank2"
 #define	PROC_FILE_STATUS_BANK2_FRONT	"driver/front_otp_bank2"
-#define	PROC_FILE_STATUS_BANK3_REAR	"driver/rear_otp_bank3"
+
+#define	PROC_FILE_STATUS_BANK3_REAR_1	"driver/rear_otp_bank3"
+#define	PROC_FILE_STATUS_BANK3_REAR_2	"driver/rear2_otp_bank3"
 #define	PROC_FILE_STATUS_BANK3_FRONT	"driver/front_otp_bank3"
-#define	PROC_FILE_REARMODULE	"driver/RearModule"
+
+#define	PROC_FILE_REARMODULE_1	"driver/RearModule"
+#define	PROC_FILE_REARMODULE_2	"driver/RearModule2"
 #define	PROC_FILE_FRONTMODULE	"driver/FrontModule"
+#define	PROC_FILE_FRONTMODULE_2	"driver/FrontModule2"
+
 
 #define REAR_PROC_FILE_PDAF_INFO	"driver/PDAF_value_more_info"
 #define FRONT_PROC_FILE_PDAF_INFO	"driver/PDAF_value_more_info_1"
 
-#define   PROC_FILE_THERMAL_REAR  "driver/camera_temp"
-#define   PROC_FILE_THERMAL_FRONT "driver/camera_temp_front"
+//for thermal team
+
+//for DIT
+#define   PROC_FILE_THERMAL_REAR  "driver/rear_temp"
+#define   PROC_FILE_THERMAL_FRONT  "driver/front_temp"
+#define   PROC_FILE_THERMAL_REAR_2  "driver/rear2_temp"
+#define   PROC_FILE_THERMAL_FRONT_2  "driver/front2_temp"
+
+#define   PROC_FILE_EEPEOM_THERMAL_REAR  "driver/rear_eeprom_temp"
+#define   PROC_FILE_EEPEOM_THERMAL_FRONT  "driver/front_eeprom_temp"
+#define   PROC_FILE_EEPEOM_THERMAL_REAR_2  "driver/rear2_eeprom_temp"
+
+#define   PROC_FILE_EEPEOM_ARCSOFT  "driver/dualcam_cali"
+#define SYSFS_FILE_RESOLUTION_REAR_0 "camera_resolution_camera"
+#define SYSFS_FILE_RESOLUTION_REAR_2 "camera_resolution_camera_2"
+#define SYSFS_FILE_RESOLUTION_FRONT "camera_resolution_vga"
+#define SYSFS_FILE_RESOLUTION_FRONT_2 "camera_resolution_vga_2"
 
 
-//ralf++
-void set_sensor_info(int camera_id,struct msm_sensor_ctrl_t* ctrl,uint16_t sensor_id);
-void create_otp_proc_file(struct msm_camera_sensor_slave_info *slave_info); 
-//ralf--
-
-//panpan++
- void create_rear_otp_proc_file(void);
- void create_front_otp_proc_file(void);
- int rear_proc_read(struct seq_file *buf, void *v);
- int front_proc_read(struct seq_file *buf, void *v);
- //panpan--
- 
- void remove_file(void);
-
- void create_rear_bank1_proc_file(void);
- void create_front_bank1_proc_file(void);
- int rear_bank1_proc_read(struct seq_file *buf, void *v);
- int front_bank1_proc_read(struct seq_file *buf, void *v);
- void remove_bank1_file(void);
+//asus bsp ralf:porting camera sensor related proc files>>
+#define VCM_PROC_FILES_REAR "driver/vcm"
+#define VCM_PROC_FILES_FRONT "driver/front_vcm"
+#define VCM_PROC_FILES_REAR_2 "driver/vcm2"
+#define VCM_PROC_FILES_FRONT_2 "driver/front_vcm2"
 
 
- void create_rear_bank2_proc_file(void);
- void create_front_bank2_proc_file(void);
- int rear_bank2_proc_read(struct seq_file *buf, void *v);
- int front_bank2_proc_read(struct seq_file *buf, void *v);
- void remove_bank2_file(void);
+#define	EEPROM_PROC_FILE_REAR		"driver/rear_eeprom"
+#define	EEPROM_PROC_FILE_FRONT		"driver/front_eeprom"
+#define	EEPROM_PROC_FILE_REAR_2		"driver/rear2_eeprom"
+#define	EEPROM_PROC_FILE_FRONT_2	"driver/front2_eeprom"
 
- void create_rear_bank3_proc_file(void);
- void create_front_bank3_proc_file(void);
- int rear_bank3_proc_read(struct seq_file *buf, void *v);
- int front_bank3_proc_read(struct seq_file *buf, void *v);
- void remove_bank3_file(void);
+#define SYSFS_FILE_STATUS_REAR_1  "camera_status_camera"
+#define SYSFS_FILE_STATUS_REAR_2  "camera_status_camera_2"
+#define SYSFS_FILE_STATUS_FRONT   "camera_status_vga"
+#define SYSFS_FILE_STATUS_FRONT_2   "camera_status_vga_2"
 
- void create_rear_module_proc_file(void);
- void create_front_module_proc_file(void);
- int rear_module_proc_read(struct seq_file *buf, void *v);
- int front_module_proc_read(struct seq_file *buf, void *v);
- void remove_module_file(void);
+#ifdef ZD552KL_PHOENIX
+#define PROC_SENSOR_I2C_RW "driver/sensor_i2c_rw"
+#define PROC_PDAF_I2C_R "driver/pdaf_i2c_r"
+//ASUS_BSP++, LLHDR
+#define PROC_PREISP_VHDR_MODE "driver/preisp_vhdr_mode"
+#define PROC_PREISP_CFRAME_ID "driver/preisp_cframe_id"
+#define PROC_PREISP_PFRAME_ID "driver/preisp_pframe_id"
+#define PROC_PREISP_SFRAME_ID "driver/preisp_sframe_id"
+//ASUS_BSP--, LLHDR
+#define PROC_IFACE_PROCESS_FRAME_ID "driver/iface_process_frame_id"
+#endif
 
- ssize_t rear_otp_proc_show_asus(struct device *dev,
-				struct device_attribute *attr, char *buf);
- ssize_t front_otp_proc_show_asus(struct device *dev,
-				struct device_attribute *attr, char *buf);
-
- int read_rear_otp_asus(unsigned short sensor_id);
- int read_front_otp_asus(unsigned short sensor_id);
-
-
-//sheldon++
- int fcamera_power_up( struct msm_sensor_ctrl_t *s_ctrl);
- int fcamera_power_down( struct msm_sensor_ctrl_t *s_ctrl);
-void create_thermal_file(int camNum);
-void create_dump_eeprom_file(int camNum);
-int imx298_otp_read(int camNum);
-int ov8856_otp_read(void);
-int t4k37_35_otp_read(void);
-//sheldon--
-
-
- int create_rear_status_proc_file(void);
- int create_front_status_proc_file(void);
- int create_rear_resolution_proc_file(void);
- int create_front_resolution_proc_file(void);
-
- void remove_proc_file(void);
- void remove_resolution_file(void);
-
- void create_proc_pdaf_info(void);
- void clear_proc_pdaf_info(void);
+void remove_sensor_proc_files(struct msm_sensor_ctrl_t *s_ctrl);
+void create_sensor_proc_files(struct msm_sensor_ctrl_t *s_ctrl,struct msm_camera_sensor_slave_info *slave_info);
+void eeprom_create_proc_file(struct msm_eeprom_ctrl_t * e_ctrl);
+void eeprom_remove_file(uint32_t subdev_id);
+void vcm_create_proc_file(struct msm_actuator_ctrl_t *vcm_ctrl);
+//asus bsp ralf:porting camera sensor related proc files<<
 
 #endif

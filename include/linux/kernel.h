@@ -14,7 +14,9 @@
 #include <linux/dynamic_debug.h>
 #include <asm/byteorder.h>
 #include <uapi/linux/kernel.h>
+//ASUS_BSP: +++
 #include <linux/asusdebug.h>
+
 extern int g_user_dbg_mode;
 extern int g_user_klog_mode;
 
@@ -548,15 +550,38 @@ enum ftrace_dump_mode {
 extern int asus_lcd_id;
 extern int asus_project_id;
 extern int asus_hw_id;
+extern int asus_mp_id;
 extern int asus_rf_id;
 extern int asus_fp_id;
 
 enum project_pcbid{
-	ASUS_ZC552KL = 3,
+	ASUS_ZD552KL_PHOENIX = 2,
+	ASUS_ZE553KL = 3,
 	ASUS_ZS550KL = 4,
-	ASUS_ZD552KL = 5,
 };
 
+#ifdef ZE553KL
+enum project_stage {
+	ASUS_EVB = 0,
+	ASUS_SR1 = 1,
+	ASUS_SR2 = 4,
+	ASUS_ER  = 5,
+	ASUS_PR1  = 6,
+	ASUS_PR2  = 2,
+	ASUS_MP  = 7,
+};
+#elif defined ZD552KL_PHOENIX
+enum project_stage {
+	ASUS_SR1 = 1,
+	ASUS_ER1 = 2,
+	ASUS_SR2 = 4,
+	ASUS_ER2 = 5,
+	ASUS_PR  = 6,
+	ASUS_MP = 7,
+	ASUS_MP2 = 0,
+	ASUS_RSRVD = 3,
+};
+#else
 enum project_stage {
 	ASUS_EVB = 0,
 	ASUS_SR1 = 1,
@@ -566,13 +591,16 @@ enum project_stage {
 	ASUS_PR  = 6,
 	ASUS_MP  = 7,
 };
+#endif
 
 enum asus_fpid{
 	SYNAPTICS = 0,
 	GOODIX = 1,
+	GOODIX2 = 2,
 	UNKNOWN_FP_ID = 0xff,
 };
 
+#if defined(ZS550KL)
 //<ASUS-Jessie_Tian-20160517>recive RF ID+++
 enum project_rfid{
 	ASUS_WW = 0,
@@ -580,7 +608,30 @@ enum project_rfid{
 	ASUS_UNKNOWN= 0xff,
 };
 //<ASUS-Jessie_Tian-20160517>recive RF ID---
-
+#elif defined(ZE553KL)
+enum project_rfid{
+	ASUS_WW = 0,
+	ASUS_CN = 2,
+	ASUS_CN6 = 3,
+	ASUS_WW_HADES = 4,
+	ASUS_ID_IN = 5,
+	ASUS_TW_JP = 6,
+	ASUS_US_BR = 7,
+	ASUS_UNKNOWN= 0xff,
+};
+#elif defined(ZD552KL_PHOENIX)
+enum project_rfid{
+	ASUS_WW = 0,
+	ASUS_IN_ID = 1,
+	ASUS_BR_US = 2,
+	ASUS_IN_ID_SKY77645 = 3,
+	ASUS_WW2 = 4,
+	ASUS_IN_ID2 =5,
+	ASUS_TW_CA = 8,
+	ASUS_CN_CA = 9,
+	ASUS_UNKNOWN= 0xff,
+};
+#endif
 
 #ifdef CONFIG_TRACING
 void tracing_on(void);
@@ -867,8 +918,4 @@ static inline void ftrace_dump(enum ftrace_dump_mode oops_dump_mode) { }
 	 /* Other writable?  Generally considered a bad idea. */	\
 	 BUILD_BUG_ON_ZERO((perms) & 2) +				\
 	 (perms))
-
-/* To identify board information in panic logs, set this */
-extern char *mach_panic_string;
-
 #endif
