@@ -8,7 +8,7 @@ obj-$(CONFIG_MSMB_CAMERA) += cci/ io/ csiphy/ csid/ actuator/ eeprom/ flash/ #oi
 ifeq ($(TARGET_PRODUCT), Z01H)
 obj-$(CONFIG_MSMB_CAMERA) += ois-rumba/ laser_focus/
 endif
-ifeq ($(TARGET_PRODUCT), Z018)
+#ifeq ($(TARGET_PRODUCT), Z018)
 obj-$(CONFIG_MSMB_CAMERA) += ois/ laser_focus/
-endif
+#endif
 obj-$(CONFIG_MSM_CAMERA_SENSOR) += msm_sensor_init.o msm_sensor_driver.o msm_sensor.o fac_camera.o
