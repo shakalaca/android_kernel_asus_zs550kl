@@ -1010,8 +1010,17 @@ static int qpnp_typec_probe(struct spmi_device *spmi)
 	}
 
 	create_typec_charger_reg_dump_proc_file();
-
 	pr_info("TypeC successfully probed state=%d CC-line-state=%d\n",
+			chip->typec_state, chip->cc_line_state);
+	/*redetect to fix the issue that OTG device cannot be detected after warm reboot*/
+	rc = qpnp_typec_determine_initial_status(chip);
+	if (rc) {
+		pr_err("failed to determine initial state rc=%d\n", rc);
+		goto out;
+	}
+
+
+	pr_info("After redetect TypeC successfully probed state=%d CC-line-state=%d\n",
 			chip->typec_state, chip->cc_line_state);
 	return 0;
 
